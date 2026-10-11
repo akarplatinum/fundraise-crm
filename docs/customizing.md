@@ -39,7 +39,7 @@ The UI is plain HTML, CSS and JavaScript with no build step. Edit and reload.
 Stage keys are stored on each deal, so renaming a label is safe, but removing a
 key strands any deal already in that stage. Move those deals first.
 
-## What Claude writes
+## What the AI writes
 
 | What                                           | Where                                                       |
 | ---------------------------------------------- | ----------------------------------------------------------- |
@@ -71,10 +71,10 @@ the final score leans 75% on the model. Change the weights in `runScoring()`.
 
 ## Model and spend
 
-| What                  | Where                                                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Default model         | `DEFAULT_MODEL` in `src/claude.js`, or `MODEL_ID` in `wrangler.toml`, or the Model settings page (admin only), which wins |
-| Daily limits per user | `LIMITS` in `src/claude.js`                                                                                               |
+| What                  | Where                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Default model         | `DEFAULT_MODEL` in `src/ai.js`, or `MODEL_ID` in `wrangler.toml`, or the Model settings page (admin only), which wins |
+| Daily limits per user | `LIMITS` in `src/ai.js`                                                                                               |
 
 `LIMITS` counts actions per user per UTC day: 5 deck analyses, 8 scoring runs,
 6 discovery runs, 5 critiques, 60 intro drafts. On your own deploy it is a guard
@@ -123,7 +123,7 @@ apps/web/src/
   index.js      routing and the session gate
   auth.js       passwords and session cookies
   http.js       response helpers
-  claude.js     the Anthropic call, model settings, daily limits
+  ai.js     the Anthropic call, model settings, daily limits
   profile.js    deck and site analysis, taxonomy, deck score
   investors.js  discovery and scoring
   drafts.js     prompts for intros and the critique

@@ -1,7 +1,7 @@
 // Prompts for the deck critique and for intro drafts. Every fact about the
 // company comes from the profile; nothing about any company is hardcoded.
 
-// A deck critique is written against the profile Claude already extracted, not
+// A deck critique is written against the profile the model already extracted, not
 // against the PDF a second time: the profile is what investors will effectively
 // see (it's what feeds discovery and intros), so a gap there is a gap in the
 // deck. Re-reading the PDF would also double the deck quota for one action.

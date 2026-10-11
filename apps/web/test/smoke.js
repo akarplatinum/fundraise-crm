@@ -226,7 +226,7 @@ async function main() {
 
   // -------------------------------------------------------------- profiling
   section("Scoring");
-  // Stand a profile up directly: deck analysis is Claude reading a PDF, which
+  // Stand a profile up directly: deck analysis is the model reading a PDF, which
   // is not what these tests are about.
   await env.DB.prepare("UPDATE companies SET profile=?1, deck_status='ready', categories=?2 WHERE id=?3")
     .bind(JSON.stringify(PROFILE), JSON.stringify(["robotics", "b2b-saas"]), aCo)

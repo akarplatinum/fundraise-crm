@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS companies (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL DEFAULT '',
   -- Deck analysis lands here as JSON: one_liner, stage, raising, traction,
-  -- categories, keywords, ideal_investor. Written by Claude, editable by hand.
+  -- categories, keywords, ideal_investor. Written by the model, editable by hand.
   profile     TEXT NOT NULL DEFAULT '{}',
   -- Categories the founder confirmed during onboarding. Drives discovery.
   categories  TEXT NOT NULL DEFAULT '[]',
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS investors (
 CREATE INDEX IF NOT EXISTS investors_company_source ON investors (company_id, source);
 
 -- Per-user, per-day API call counters. This is the ceiling that makes it safe to
--- run every tenant's Claude calls on one owner's API key: without it, one founder
+-- run every tenant's model calls on one owner's API key: without it, one founder
 -- looping deck re-analysis bills the key owner without limit.
 CREATE TABLE IF NOT EXISTS usage (
   username TEXT NOT NULL,

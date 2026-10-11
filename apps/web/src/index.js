@@ -9,7 +9,7 @@
 //   index.js      this file: routing, the session gate, request validation
 //   auth.js       password hashing and the signed session cookie
 //   http.js       response helpers (json, csv, downloads)
-//   claude.js     the Anthropic call, model settings, per-user daily limits
+//   ai.js     the Anthropic call, model settings, per-user daily limits
 //   profile.js    deck/site analysis, the category taxonomy, the deck score
 //   investors.js  investor discovery and scoring the list against a profile
 //   drafts.js     the prompts behind intro drafts and the deck critique
@@ -20,7 +20,7 @@
 // (analysis, discovery, scoring) run in ctx.waitUntil and write status to the
 // companies row, which the client polls; no response waits on a model call.
 
-import { DEFAULT_MODEL, LIMITS, callAnthropic, resolveModel, spend, toBase64, utcDay } from "./claude.js";
+import { DEFAULT_MODEL, LIMITS, callAnthropic, resolveModel, spend, toBase64, utcDay } from "./ai.js";
 import { JSON_TYPE, NO_STORE, asset, download, json, readJson, toCsv } from "./http.js";
 import {
   SESSION_DAYS,
@@ -343,7 +343,7 @@ export default {
         return beginAnalysis(env, ctx, companyId, { siteUrl, label: "site" });
       }
 
-      // Hand-edit the profile Claude produced, or the confirmed categories.
+      // Hand-edit the profile the model produced, or the confirmed categories.
       if (p === "/api/profile" && method === "POST") {
         const b = await readJson(request);
         // Only the fields actually present are sent down; the store ignores

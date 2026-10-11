@@ -1,4 +1,4 @@
-import { WEB_FETCH_TOOL, callAnthropic, parseJSON } from "./claude.js";
+import { WEB_FETCH_TOOL, callAnthropic, parseJSON } from "./ai.js";
 
 // Turning a deck or a website into a company profile: the model call, the
 // closed category taxonomy it labels against, and the stage-relative deck score.

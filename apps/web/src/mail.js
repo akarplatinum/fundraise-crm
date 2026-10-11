@@ -12,7 +12,7 @@
 // down waits instead of disappearing.
 
 import { hex, sha256Hex } from "./auth.js";
-import { toBase64 } from "./claude.js";
+import { toBase64 } from "./ai.js";
 import { badRequest, json, readJson } from "./http.js";
 import {
   appendLog,

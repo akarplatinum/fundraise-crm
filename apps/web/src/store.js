@@ -13,7 +13,7 @@
 
 // DB columns hold strict JSON we wrote ourselves, so a plain parse with a
 // fallback is right here. Model output needs the far more forgiving parser in
-// claude.js, deliberately not shared, because tolerating fenced or truncated
+// ai.js, deliberately not shared, because tolerating fenced or truncated
 // JSON from our own database would hide corruption instead of surfacing it.
 function col(text, fallback) {
   try {

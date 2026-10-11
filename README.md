@@ -8,13 +8,13 @@ mailbox with your deck attached.
 You host it yourself, on Cloudflare's free tier and your own Anthropic API key.
 
 - **Your deck in, a profile out.** Upload a PDF or point it at your website.
-  Claude writes a company profile (stage, raise, traction, categories) and a
+  The AI writes a company profile (stage, raise, traction, categories) and a
   blunt deck critique.
 - **1,715 investors to start with.** Funds, micro-VCs and angels, each with
   thesis, stages, check size, portfolio, and a named partner for 1,673 of
   them. See [data/README.md](data/README.md).
 - **Scored against you, not someone else.** The list arrives unscored. One click
-  scores every firm on sector, stage and check size, then has Claude read the
+  scores every firm on sector, stage and check size, then has the AI read the
   top 100 theses against your profile.
 - **A pipeline you will actually use.** Kanban stages from first contact to
   signed, an intro map of who can introduce you to whom, and a round builder
@@ -90,7 +90,7 @@ npm test       # both apps; needs Node 22+
 
 The investor records are point-in-time research from 2026. Partners move and
 funds close, so check before you write. Deck analysis, discovery and drafting
-call the live Claude API, which the test suite fakes; confirm your first deck
+call the live Anthropic API, which the test suite fakes; confirm your first deck
 analysis looks right before you trust the scores built on it.
 
 ## License

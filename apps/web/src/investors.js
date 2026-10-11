@@ -1,4 +1,4 @@
-import { WEB_SEARCH_TOOL, callAnthropic, parseJSON } from "./claude.js";
+import { WEB_SEARCH_TOOL, callAnthropic, parseJSON } from "./ai.js";
 import { categoryLabels } from "./profile.js";
 import { bumpScored, loadInvestors, markScored, saveInvestors } from "./store.js";
 

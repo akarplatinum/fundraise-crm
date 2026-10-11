@@ -110,6 +110,6 @@ reporting and token rotation.
 `apps/mailer/test/smtp.test.js` sends through `smtp.js` to a fake SMTP server
 that speaks STARTTLS and checks the body and a 200 KB attachment arrive intact.
 
-**Not covered by tests:** the live Claude calls (deck analysis, discovery,
+**Not covered by tests:** the live model calls (deck analysis, discovery,
 intros) run against a fake endpoint, and real SMTP providers are only exercised
 when you run `node apps/mailer/mailer.js --check` against your own.

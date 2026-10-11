@@ -7,7 +7,7 @@ you need.
 
 ### What it is
 
-An investor CRM. The user gives it a pitch deck or website; Claude writes a
+An investor CRM. The user gives it a pitch deck or website; the AI writes a
 company profile, scores a bundled list of 1,715 investors against it, and the
 user works the resulting pipeline. Emails are queued in the app and sent from
 the user's own mailbox by `apps/mailer`. `apps/web` is a Cloudflare Pages app
@@ -92,7 +92,7 @@ and the port, and changes nothing. Then:
 - **`no_api_key`:** the key binding is empty. Run `doctor`.
 - **Deck analysis looks stuck:** it takes 30 to 60 seconds in the background.
   Poll `/api/me` until `company.deck.status` is `ready` or `failed`.
-- **"Daily limit reached":** that is `LIMITS` in `apps/web/src/claude.js`
+- **"Daily limit reached":** that is `LIMITS` in `apps/web/src/ai.js`
   working. Raise it only if the user asks.
 
 ## Changing the code
