@@ -1,0 +1,394 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #16161a;
+  --muted: #6b6b76;
+  --line: #e6e6e2;
+  --card: #fff;
+  --accent: #1a1a1f;
+  --bad: #b4342a;
+  --ok: #2f7a4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111114;
+    --fg: #f2f2f0;
+    --muted: #9a9aa4;
+    --line: #2a2a31;
+    --card: #191920;
+    --accent: #f2f2f0;
+    --bad: #f0857c;
+    --ok: #7fd3a2;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.55 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Inter,
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+}
+h1 {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+h2 {
+  font-size: 17px;
+  margin: 0 0 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sub {
+  color: var(--muted);
+  margin: 0 0 40px;
+}
+.step {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 18px;
+}
+.step[hidden] {
+  display: none;
+}
+.step.done {
+  opacity: 0.62;
+}
+.n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 9px;
+  vertical-align: 1px;
+}
+button {
+  font: inherit;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 9px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+}
+button.ghost {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--line);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.drop {
+  border: 1.5px dashed var(--line);
+  border-radius: 11px;
+  padding: 34px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.drop:hover,
+.drop.over {
+  border-color: var(--fg);
+  background: rgba(127, 127, 127, 0.05);
+}
+.drop small {
+  color: var(--muted);
+  display: block;
+  margin-top: 5px;
+}
+input[type="file"] {
+  display: none;
+}
+.msg {
+  margin-top: 14px;
+  font-size: 14px;
+}
+.msg.err {
+  color: var(--bad);
+}
+.msg.ok {
+  color: var(--ok);
+}
+.spin {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--line);
+  border-top-color: var(--fg);
+  border-radius: 50%;
+  animation: sp 0.7s linear infinite;
+  vertical-align: -2px;
+  margin-right: 7px;
+}
+@keyframes sp {
+  to {
+    transform: rotate(360deg);
+  }
+}
+dl {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 9px 16px;
+  margin: 0 0 18px;
+  font-size: 14px;
+}
+dt {
+  color: var(--muted);
+}
+dd {
+  margin: 0;
+}
+ul.t {
+  margin: 0;
+  padding-left: 17px;
+  font-size: 14px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 20px;
+}
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+}
+.chip.on {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.gaps {
+  border-left: 2px solid var(--line);
+  padding-left: 14px;
+  margin: 18px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.gaps strong {
+  color: var(--fg);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+/* Critique: same left-rule family as .gaps, but full-contrast body text —
+     it's meant to be read closely, not skimmed as a footnote. */
+.crit {
+  border-left: 2px solid var(--line);
+  padding-left: 14px;
+  margin: 18px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.crit h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 16px 0 4px;
+  font-weight: 600;
+}
+.crit h2:first-child {
+  margin-top: 0;
+}
+.crit .when {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+/* deck score */
+.score {
+  margin: 20px 0 4px;
+}
+.score .top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.score .num {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.score .num span {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.score .band {
+  font-size: 14px;
+  color: var(--muted);
+}
+.score .basis {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.dim {
+  display: grid;
+  grid-template-columns: 128px 76px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.dim .nm {
+  color: var(--muted);
+}
+/* Bar rather than a number: the point is which dimensions are short relative
+     to the others, which the eye reads faster from length than from digits. */
+.bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--fg);
+}
+.dim.low .bar i {
+  background: #c2410c;
+}
+.dim .fix {
+  color: var(--muted);
+}
+.dim.low .fix {
+  color: var(--fg);
+}
+.chip .cf {
+  opacity: 0.55;
+  font-size: 12px;
+  margin-left: 5px;
+}
+.add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.add input {
+  flex: 1;
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 16px 0;
+}
+.or::before,
+.or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.picked {
+  font-size: 14px;
+  margin: 12px 0 0;
+}
+.picked button {
+  font-size: 13px;
+  padding: 2px 8px;
+  margin-left: 8px;
+}
+/* discovery loading screen */
+.loader {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.loader[hidden] {
+  display: none;
+}
+.loader .box {
+  max-width: 430px;
+  text-align: center;
+}
+.loader h2 {
+  font-size: 21px;
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
+}
+.loader .stage {
+  color: var(--muted);
+  font-size: 14.5px;
+  margin: 0;
+  min-height: 23px;
+}
+.loader .time {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 26px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.loader .hint {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+.loader .msg {
+  margin-top: 16px;
+}
+.orb {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--fg);
+  animation: sp 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+    border-top-color: var(--line);
+  }
+}

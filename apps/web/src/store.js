@@ -1,11 +1,8 @@
 // Every database call in the app lives here.
 //
-// The point is not tidiness — it is that the rest of the app never names a
-// table, writes SQL, or touches `env.DB`. Moving to Postgres, libSQL, or a test
-// double means reimplementing this one module against the same function
-// signatures; nothing outside this file changes. Before this, thirty prepare() calls
-// were spread across route handlers and the storage engine was load-bearing in
-// every one of them.
+// The rest of the app never names a table, writes SQL, or touches `env.DB`.
+// Moving to Postgres, libSQL, or a test double means reimplementing this one
+// module against the same function signatures.
 //
 // Two rules hold throughout:
 //   1. Every query is scoped by company_id. That scoping IS the tenant
@@ -347,10 +344,8 @@ export function deleteInvestor(env, companyId, id) {
 
 const DEAL_OWN = new Set(["stage", "notes", "ts", "by"]);
 
-// The activity log is append-only and nothing ever deletes from it, so an
-// instance in use for a year holds tens of thousands of rows — and every page
-// load used to read all of them, growing the response forever. Only the most
-// recent window is returned. The client re-sends only entries it has not yet
+// The activity log is append-only and grows for the life of the account, so
+// only the most recent window is returned. The client re-sends only entries it has not yet
 // stored, so holding a truncated log is safe: it cannot cause the older rows to
 // be re-uploaded or dropped.
 const LOG_WINDOW = 500;
@@ -388,14 +383,11 @@ export async function loadCrm(env, companyId) {
 // "removed", but it also means "someone else added it after I loaded". Only rows
 // this client demonstrably knew about (updated_at <= _base) are deleted.
 //
-// Every statement here is chunked and written as multi-row VALUES. The reason is
-// specific and was learned the hard way: this function used to delete with
-// `id NOT IN (…every id the client kept…)`, one bound parameter per deal. That
-// crossed D1's 100-parameter ceiling the moment a pipeline reached ~98 deals,
-// and because a rejected statement fails the whole batch, every save from that
-// point on failed ENTIRELY — not one row lost, all of them. The removed set is
-// now worked out in JS from a SELECT, so no query's width scales with the size
-// of the book.
+// Every statement here is chunked multi-row VALUES, and the set of removed
+// deals is worked out in JS from a SELECT rather than with `id NOT IN (...)`.
+// D1 rejects a statement with more than 100 bound parameters, and a rejected
+// statement fails the whole batch, so no query's width may grow with the
+// number of deals.
 export async function saveCrm(env, companyId, body, actor) {
   const base = Number(body._base) || 0;
   const now = Date.now();

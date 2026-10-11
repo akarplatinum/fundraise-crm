@@ -14,6 +14,8 @@
 // and a scoring run that writes nothing.
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { makeDB } from "./d1.js";
 
@@ -185,9 +187,9 @@ async function main() {
   const seed = JSON.parse(fs.readFileSync(seedFile, "utf8"));
   check(`the list is present (${seed.length} firms)`, seed.length > 0);
   check(
-    "every seeded firm arrives unscored",
-    seed.every((v) => v.scored === false),
-    "a seeded fit score would be an opinion about somebody else's company",
+    "the list carries no fit scores",
+    seed.every((v) => !("fit_score" in v) && !("scored" in v)),
+    "a bundled fit score would be an opinion about somebody else's company",
   );
   check(
     "no seeded record names the source company",
@@ -199,18 +201,28 @@ async function main() {
     seed.every((v) => v.id && v.firm && Array.isArray(v.category) && typeof v.best_partner === "object"),
   );
 
-  // Load a slice into ava's pipeline the way seed-investors.js does.
-  const slice = seed.slice(0, 60);
-  await env.DB.batch(
-    slice.map((v) =>
-      env.DB.prepare(
-        `INSERT INTO investors (id, company_id, data, source, updated_by, updated_at)
-         VALUES (?1, ?2, ?3, 'seed', 'seed', ?4)`,
-      ).bind(v.id, aCo, JSON.stringify(v), Date.now()),
-    ),
-  );
+  // Load the first chunk into ava's pipeline with the real loader script.
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), "seed-"));
+  execFileSync("node", [path.join(ROOT, "scripts/seed-investors.js"), aCo, seedDir], { stdio: "ignore" });
+  const firstChunk = fs.readFileSync(path.join(seedDir, "001.sql"), "utf8").trim().split(";\n");
+  await env.DB.batch(firstChunk.map((sql) => env.DB.prepare(sql)));
   const seeded = await (await call(env, ctx, "/api/data", { cookie: a.cookie })).json();
-  check("seeded rows load through the API", seeded.vcs.length >= slice.length, `got ${seeded.vcs.length}`);
+  const seededRows = seeded.vcs.filter((v) => v.tier === "seed" || v.tier === "fund-list");
+  check(
+    "the loader's rows load through the API",
+    seededRows.length === firstChunk.length,
+    `got ${seededRows.length}`,
+  );
+  check(
+    "loaded rows arrive unscored",
+    seededRows.every((v) => v.scored === false && v.fit_score === 50),
+  );
+  const { provenance } = await import(path.join(ROOT, "src/investors.js"));
+  check(
+    "both halves of the bundled list are stored as seed rows",
+    provenance({ tier: "seed" }) === "seed" && provenance({ tier: "fund-list" }) === "seed",
+    "scoring would relabel fund-list rows as hand-added",
+  );
 
   // -------------------------------------------------------------- profiling
   section("Scoring");
@@ -240,7 +252,7 @@ async function main() {
   check(
     "a scoring run stays inside the query budget",
     env.DB._queries < 50,
-    `${env.DB._queries} queries to score ${slice.length} investors`,
+    `${env.DB._queries} queries to score ${seededRows.length} investors`,
   );
 
   const after = await (await call(env, ctx, "/api/data", { cookie: a.cookie })).json();

@@ -600,7 +600,7 @@ export default {
             thesis: v.thesis,
             why_fit: v.why_fit || v.fit_rationale || "",
             portfolio: (v.relevant_portfolio || []).join(" | "),
-            source: v.source,
+            source: v.tier,
             stage_in_pipeline: crm.deals?.[v.id]?.stage || "",
           }));
           csv = toCsv(rows, [

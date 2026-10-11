@@ -3,7 +3,7 @@
 // password to stderr, so a password never lands in a file you might commit.
 //
 //   node scripts/seed-user.js <username> "<Display Name>" "<Company>" [password] > /tmp/u.sql
-//   npx wrangler d1 execute fundraise-crm-db --remote --file=/tmp/u.sql
+//   npx wrangler d1 execute DB --remote --file=/tmp/u.sql
 //
 // Omit the password and a strong one is generated. The hash must match
 // worker.js hashPassword(): sha256("salt:password"), hex.

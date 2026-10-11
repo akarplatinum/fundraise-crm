@@ -141,7 +141,6 @@ export function normalizeInvestor(inv, source) {
     check_size: inv.check_size || "unknown",
     thesis: inv.thesis || "",
     relevant_portfolio: inv.relevant_portfolio || [],
-    conflicts: [],
     best_partner:
       partner || (inv.best_partner ? { name: inv.best_partner, title: inv.partner_title || "" } : {}),
     other_partners: [],
@@ -156,7 +155,6 @@ export function normalizeInvestor(inv, source) {
     // from sources the model actually fetched — with a structural guess.
     scored: true,
     sources: Array.isArray(inv.sources) ? inv.sources : [],
-    source: source === "discovered" ? "found by research" : "manually added",
   };
 }
 
@@ -438,10 +436,10 @@ export async function saveInvestorsBySource(env, companyId, records, actor) {
   }
 }
 
-// `source` is a human-readable sentence in the record ("found by research"), so
-// the storage column is derived from it rather than read out of it directly.
+// The storage column for a record, from its tier: both halves of the bundled
+// list are "seed", research results are "discovered", the rest "manual".
 export function provenance(v) {
-  if (v.source === "seed list" || v.tier === "seed") return "seed";
-  if (v.source === "found by research" || v.tier === "researched") return "discovered";
+  if (v.tier === "seed" || v.tier === "fund-list") return "seed";
+  if (v.tier === "researched") return "discovered";
   return "manual";
 }

@@ -2,9 +2,8 @@
 
 export const JSON_TYPE = "application/json; charset=utf-8";
 
-// no-store matters here: these responses are per-user and the edge was observed
-// caching them. A cached authenticated payload could otherwise be replayed to
-// another user, or a stale 401 served after a successful sign-in.
+// Every response is per-user, so none may be cached at the edge: a cached one
+// could be served to another user, or a stale 401 after a successful sign-in.
 export const NO_STORE = "no-store, no-cache, must-revalidate";
 
 export function json(body, status = 200) {

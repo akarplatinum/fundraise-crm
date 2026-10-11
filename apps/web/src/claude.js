@@ -73,14 +73,9 @@ export async function spend(env, username, kind) {
 
 // ---- Anthropic ----
 //
-// Raw fetch rather than @anthropic-ai/sdk: this Worker ships as a single file
-// with no bundler (Pages advanced mode), and the existing deploy has no build
-// step to add one. If a build step is introduced later, swap this for the SDK.
-// timeoutMs is per HTTP request, not per call: the pause_turn loop below can
-// legitimately issue several. Without it a hung request never returns and the
-// job behind it never ends — a discovery run was observed sitting in
-// 'searching' for over 30 minutes with no error and no way to recover, because
-// nothing on this path ever gives up.
+// Raw fetch rather than @anthropic-ai/sdk, because the Worker has no bundler.
+// timeoutMs applies to each HTTP request (the pause_turn loop may make several):
+// without it, a hung request would leave a background job running forever.
 export async function callAnthropic(
   env,
   { system, content, tools, schema, maxTokens = 8000, effort, timeoutMs = 300000 },

@@ -2,7 +2,7 @@
 // Load the bundled investor list into a company's pipeline.
 //
 //   node scripts/seed-investors.js <company_id> [out-dir]
-//   npx wrangler d1 execute fundraise-crm-db --remote --file=<out-dir>/001.sql   (per chunk)
+//   npx wrangler d1 execute DB --remote --file=<out-dir>/001.sql   (per chunk)
 //
 // Emits SQL rather than talking to D1 itself, for the same reason seed-user.js
 // does: the script needs no credentials, the output is reviewable before it
@@ -12,9 +12,9 @@
 // independently applicable and re-applicable — the INSERT upserts on
 // (company_id, id), so re-running one repairs it rather than duplicating it.
 //
-// Rows land with source='seed' and scored=false. They are facts about firms
-// with no opinion attached; the fit numbers come from "Score against my deck"
-// in the app, which scores them against the profile read from YOUR material.
+// The list holds facts only. Each row is stored with scored=false and a
+// placeholder fit of 50 until "Score against my deck" scores it against your
+// own profile.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -52,7 +52,7 @@ for (let i = 0; i < investors.length; i += CHUNK) {
     .map(
       (v) =>
         `INSERT INTO investors (id, company_id, data, source, updated_by, updated_at) VALUES (` +
-        `${q(v.id)}, ${q(companyId)}, ${q(JSON.stringify(v))}, 'seed', 'seed', ${now}) ` +
+        `${q(v.id)}, ${q(companyId)}, ${q(JSON.stringify({ ...v, scored: false, fit_score: 50 }))}, 'seed', 'seed', ${now}) ` +
         `ON CONFLICT(company_id, id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at;`,
     );
   const name = path.join(outDir, String(files.length + 1).padStart(3, "0") + ".sql");
@@ -63,6 +63,4 @@ for (let i = 0; i < investors.length; i += CHUNK) {
 
 console.error(`${investors.length} investors -> ${files.length} files in ${outDir}/`);
 console.error("Apply each with:");
-console.error(
-  `  for f in ${outDir}/*.sql; do npx wrangler d1 execute fundraise-crm-db --remote --file="$f"; done`,
-);
+console.error(`  for f in ${outDir}/*.sql; do npx wrangler d1 execute DB --remote --file="$f"; done`);

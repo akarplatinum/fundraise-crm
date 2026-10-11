@@ -18,36 +18,37 @@ from the **Outbox** page.
 
 ## Name, colors, look
 
-| What | Where |
-|---|---|
-| Product name in the sidebar and tab title | `public/index.html`: the `.brand` element and `<title>` |
-| Sign-in and sign-up pages | `public/login.html`, `public/signup.html` |
-| Colors, light and dark | the `:root` custom properties at the top of each page (`--brand`, `--ink`, `--surface`, ...) |
+| What                                      | Where                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Product name in the sidebar and tab title | `public/index.html`: the `.brand` element and `<title>`                                                                              |
+| Sign-in and sign-up pages                 | `public/login.html`, `public/signup.html`                                                                                            |
+| Colors, light and dark                    | the `:root` custom properties at the top of `public/app/app.css` and `app/onboarding.css`, and in the `<style>` of the sign-in pages |
+| App and database names                    | `name` and `database_name` in `wrangler.toml`, the only place they appear                                                            |
 
 The UI is plain HTML, CSS and JavaScript with no build step. Edit and reload.
 
 ## The pipeline
 
-| What | Where |
-|---|---|
-| Stages, their labels, colors and close probability | `STAGE` and `FLOW` in `public/index.html` |
-| Which stages appear as board columns | `BOARDCOLS` in `public/index.html` |
-| Round size used before your profile says otherwise | `DEFAULT_ROUND_TARGET` in `public/index.html` |
-| Check-size filter buckets | `CHECKB` in `public/index.html` |
+| What                                               | Where                                          |
+| -------------------------------------------------- | ---------------------------------------------- |
+| Stages, their labels, colors and close probability | `STAGE` and `FLOW` in `public/app/core.js`     |
+| Which stages appear as board columns               | `BOARDCOLS` in `public/app/core.js`            |
+| Round size used before your profile says otherwise | `DEFAULT_ROUND_TARGET` in `public/app/core.js` |
+| Check-size filter buckets                          | `CHECKB` in `public/app/core.js`               |
 
 Stage keys are stored on each deal, so renaming a label is safe, but removing a
 key strands any deal already in that stage. Move those deals first.
 
 ## What Claude writes
 
-| What | Where |
-|---|---|
-| Intro drafts (warm request and cold email) | `buildIntroPrompts()` in `src/drafts.js` |
-| The deck critique | `buildCritiquePrompt()` in `src/drafts.js` |
-| What the profile extracts from a deck | `PROFILE_SCHEMA` and `analyzeProfile()` in `src/profile.js` |
-| The category vocabulary | `TAXONOMY` in `src/profile.js` |
-| The deck score rubric and how stage weights it | `RUBRIC` and `STAGE_WEIGHTS` in `src/profile.js` |
-| How investors are found | `discoverInvestors()` in `src/investors.js` |
+| What                                           | Where                                                       |
+| ---------------------------------------------- | ----------------------------------------------------------- |
+| Intro drafts (warm request and cold email)     | `buildIntroPrompts()` in `src/drafts.js`                    |
+| The deck critique                              | `buildCritiquePrompt()` in `src/drafts.js`                  |
+| What the profile extracts from a deck          | `PROFILE_SCHEMA` and `analyzeProfile()` in `src/profile.js` |
+| The category vocabulary                        | `TAXONOMY` in `src/profile.js`                              |
+| The deck score rubric and how stage weights it | `RUBRIC` and `STAGE_WEIGHTS` in `src/profile.js`            |
+| How investors are found                        | `discoverInvestors()` in `src/investors.js`                 |
 
 The intro prompt sets the voice: direct, specific, no hype, no exclamation
 marks. If your drafts come out sounding like someone else, change the system
@@ -70,10 +71,10 @@ the final score leans 75% on the model. Change the weights in `runScoring()`.
 
 ## Model and spend
 
-| What | Where |
-|---|---|
-| Default model | `DEFAULT_MODEL` in `src/claude.js`, or `MODEL_ID` in `wrangler.toml`, or the Model settings page (admin only), which wins |
-| Daily limits per user | `LIMITS` in `src/claude.js` |
+| What                  | Where                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Default model         | `DEFAULT_MODEL` in `src/claude.js`, or `MODEL_ID` in `wrangler.toml`, or the Model settings page (admin only), which wins |
+| Daily limits per user | `LIMITS` in `src/claude.js`                                                                                               |
 
 `LIMITS` counts actions per user per UTC day: 5 deck analyses, 8 scoring runs,
 6 discovery runs, 5 critiques, 60 intro drafts. On your own deploy it is a guard
@@ -85,11 +86,11 @@ error go away.
 
 How sending works and how to set it up is in [email.md](email.md). The pieces:
 
-| What | Where |
-|---|---|
-| Largest attachment | `MAX_FILE_BYTES` in `src/mail.js` (bounded by the D1 query limit on the Free plan, see the comment) |
-| How often the mailer runs | the `cron` line in `.github/workflows/mailer.yml` |
-| SMTP behaviour | `apps/mailer/smtp.js` |
+| What                      | Where                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| Largest attachment        | `MAX_FILE_BYTES` in `src/mail.js` (bounded by the D1 query limit on the Free plan, see the comment) |
+| How often the mailer runs | the `cron` line in `.github/workflows/mailer.yml`                                                   |
+| SMTP behaviour            | `apps/mailer/smtp.js`                                                                               |
 
 ## The investor list
 
@@ -109,7 +110,7 @@ node scripts/seed-user.js sam "Sam" "Their Company"
 
 Both print SQL to stdout and the password to stderr, so the password never
 lands in a file. Apply the SQL with
-`npx wrangler d1 execute fundraise-crm-db --remote --file=<file>`.
+`npx wrangler d1 execute DB --remote --file=<file>`.
 
 Set `SIGNUP_OPEN = "true"` in `wrangler.toml` to let people create their own
 account at `/signup`. Those accounts are never admin, so they cannot change the
@@ -128,7 +129,12 @@ apps/web/src/
   drafts.js     prompts for intros and the critique
   mail.js       attachments, the outbox, the mailer API
   store.js      every database query
-apps/web/public/  the UI (index.html is the app; the others are sign-in and onboarding)
+apps/web/public/
+  index.html    the app's markup; scripts load in the order listed at the bottom
+  app/          app.css, and one script per view (directory.js, pipeline.js,
+                drawer.js, email.js, ...). core.js holds shared state and
+                helpers and loads first; main.js starts the app and loads last.
+  onboarding.html, login.html, signup.html  (onboarding's code is in app/ too)
 apps/web/schema.sql
 apps/mailer/      mailer.js (the queue) and smtp.js (the protocol)
 ```

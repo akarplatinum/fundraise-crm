@@ -13,7 +13,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-DB_NAME="fundraise-crm-db"
+# Both names live in wrangler.toml only, so a fork renames the app in one place.
+toml_value() { sed -n "s/^$1 *= *\"\(.*\)\"/\1/p" wrangler.toml | head -1; }
+APP_NAME="$(toml_value name)"
+DB_NAME="$(toml_value database_name)"
 PORT="${PORT:-4318}"
 WRANGLER="npx --yes wrangler@4"
 
@@ -60,9 +63,8 @@ resolve_api_key() {
 }
 
 # .dev.vars is a flat KEY=value file with no quoting and no continuations. It is
-# rewritten wholesale rather than appended to: appending is how it previously
-# ended up with a duplicate key on its own line, which silently broke the
-# binding and cost an hour of debugging.
+# always rewritten whole: appending can leave a duplicate key that silently
+# breaks the binding.
 write_dev_vars() {
   local key="$1" secret
   secret="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')"
@@ -106,7 +108,7 @@ check_port() {
 #
 # $1 is "--local" or "--remote".
 count_users() {
-  $WRANGLER d1 execute "$DB_NAME" $1 --command "SELECT COUNT(*) AS n FROM users" --json 2>/dev/null \
+  $WRANGLER d1 execute DB $1 --command "SELECT COUNT(*) AS n FROM users" --json 2>/dev/null \
     | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
         try{const r=JSON.parse(s);const n=(r[0]||r).results[0].n;process.stdout.write(String(n))}catch(e){process.stdout.write('')}
       })"
@@ -138,7 +140,7 @@ ensure_owner() {
   sql="$(mktemp)"
   # The password goes to stderr, which is the terminal — never into the SQL file.
   node scripts/seed-user.js "$user" "$display" "$company" > "$sql"
-  $WRANGLER d1 execute "$DB_NAME" $scope --file="$sql" >/dev/null \
+  $WRANGLER d1 execute DB $scope --file="$sql" >/dev/null \
     && ok "owner '$user' created (role: admin)" \
     || { rm -f "$sql"; die "Could not create the owner account."; }
   cid="$(grep -oE "co_[a-z0-9]+" "$sql" | head -1)"
@@ -153,7 +155,7 @@ ensure_owner() {
     node scripts/seed-investors.js "$cid" "$dir" 2>/dev/null
     local f count=0
     for f in "$dir"/*.sql; do
-      $WRANGLER d1 execute "$DB_NAME" $scope --file="$f" >/dev/null 2>&1 \
+      $WRANGLER d1 execute DB $scope --file="$f" >/dev/null 2>&1 \
         && count=$((count+1)) \
         || warn "chunk $(basename "$f") failed — re-apply it by hand"
     done
@@ -173,7 +175,7 @@ do_local() {
   # wrangler.toml are fine here: the id is only consulted for remote calls, which
   # is why local mode needs no Cloudflare account at all.
   bold "Preparing local database"
-  $WRANGLER d1 execute "$DB_NAME" --local --persist-to .wrangler/state --file=schema.sql >/dev/null 2>&1 \
+  $WRANGLER d1 execute DB --local --persist-to .wrangler/state --file=schema.sql >/dev/null 2>&1 \
     && ok "schema applied to local D1" \
     || die "Could not apply schema.sql to the local database."
 
@@ -209,71 +211,83 @@ resolve_account_id() {
   echo "$ids"
 }
 
-# Create the D1 database only if a database of that name isn't already there,
-# then return its id either way. This is what makes deploy re-runnable.
+# The id of the D1 database named in wrangler.toml, or nothing if it does not exist.
+find_database_id() {
+  $WRANGLER d1 list --json 2>/dev/null | node -e "
+    let s = '';
+    process.stdin.on('data', (d) => (s += d)).on('end', () => {
+      try {
+        const db = JSON.parse(s).find((d) => d.name === process.argv[1]);
+        process.stdout.write(db ? db.uuid || db.database_id || '' : '');
+      } catch (_) {}
+    });" "$DB_NAME"
+}
+
+# Creates the database only if it is missing, so deploy can be re-run.
 ensure_database() {
   local id
-  id="$($WRANGLER d1 list --json 2>/dev/null \
-        | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
-            try{const m=(JSON.parse(s)||[]).find(d=>d.name==='$DB_NAME');process.stdout.write(m?(m.uuid||m.database_id||''):'')}catch(e){}
-          })")"
+  id="$(find_database_id)"
   if [ -z "$id" ]; then
     $WRANGLER d1 create "$DB_NAME" >/dev/null 2>&1 || true
-    id="$($WRANGLER d1 list --json 2>/dev/null \
-          | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
-              try{const m=(JSON.parse(s)||[]).find(d=>d.name==='$DB_NAME');process.stdout.write(m?(m.uuid||m.database_id||''):'')}catch(e){}
-            })")"
+    id="$(find_database_id)"
   fi
   [ -n "$id" ] || die "Could not create or find the D1 database '$DB_NAME'."
   echo "$id"
 }
 
-# wrangler.toml ships with placeholders and the original author's account id.
-# Rewriting both is what makes this repo installable by someone who is not them.
+# Secrets can only be set on a project that exists, so create it first.
+# Creating one that already exists fails harmlessly.
+ensure_project() {
+  $WRANGLER pages project create "$APP_NAME" --production-branch main >/dev/null 2>&1 || true
+  ok "pages project $APP_NAME"
+}
+
+# wrangler.toml ships with a placeholder database id; point it at the real one.
 patch_config() {
-  local db_id="$1" acct="$2"
   node -e '
-    const fs=require("fs");
-    const [dbId,acct]=process.argv.slice(1);
-    let t=fs.readFileSync("wrangler.toml","utf8");
-    t=t.replace(/^database_id = ".*"$/gm, `database_id = "${dbId}"`);
-    t=t.replace(/^account_id = ".*"$/m,   `account_id = "${acct}"`);
-    fs.writeFileSync("wrangler.toml",t);
-  ' "$db_id" "$acct"
-  ok "wrangler.toml points at this account and database"
+    const fs = require("fs");
+    const t = fs.readFileSync("wrangler.toml", "utf8");
+    fs.writeFileSync("wrangler.toml", t.replace(/^database_id = ".*"$/gm, `database_id = "${process.argv[1]}"`));
+  ' "$1"
+  ok "wrangler.toml points at database $DB_NAME"
 }
 
 do_deploy() {
   check_prereqs
   require_cf_login
-  local acct db_id key
-  acct="$(resolve_account_id)";   ok "account $acct"
-  db_id="$(ensure_database)";     ok "database $DB_NAME ($db_id)"
-  patch_config "$db_id" "$acct"
+  local db_id key
+  # Exported, so every wrangler call below targets the same account.
+  CLOUDFLARE_ACCOUNT_ID="$(resolve_account_id)"
+  export CLOUDFLARE_ACCOUNT_ID
+  ok "account $CLOUDFLARE_ACCOUNT_ID"
+  db_id="$(ensure_database)"
+  ok "database $DB_NAME ($db_id)"
+  patch_config "$db_id"
+  ensure_project
 
   bold "Applying schema"
   # CREATE TABLE IF NOT EXISTS throughout, so this is safe on an existing deploy.
-  $WRANGLER d1 execute "$DB_NAME" --remote --file=schema.sql >/dev/null && ok "schema applied"
+  $WRANGLER d1 execute DB --remote --file=schema.sql >/dev/null && ok "schema applied"
 
   bold "Setting secrets"
   key="$(resolve_api_key)"
-  printf '%s' "$key" | $WRANGLER pages secret put ANTHROPIC_API_KEY --project-name fundraise-crm >/dev/null 2>&1 \
+  printf '%s' "$key" | $WRANGLER pages secret put ANTHROPIC_API_KEY --project-name "$APP_NAME" >/dev/null 2>&1 \
     && ok "ANTHROPIC_API_KEY set" || warn "could not set ANTHROPIC_API_KEY (set it in the dashboard)"
   node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))' \
-    | $WRANGLER pages secret put SESSION_SECRET --project-name fundraise-crm >/dev/null 2>&1 \
+    | $WRANGLER pages secret put SESSION_SECRET --project-name "$APP_NAME" >/dev/null 2>&1 \
     && ok "SESSION_SECRET set" || warn "could not set SESSION_SECRET (set it in the dashboard)"
 
   ensure_owner --remote
 
   bold "Deploying"
   node build.js >/dev/null
-  $WRANGLER pages deploy .assets --project-name fundraise-crm
+  $WRANGLER pages deploy .assets --project-name "$APP_NAME" --branch main
   echo
   bold "Done. Sign in at the URL above with the account printed earlier."
   echo "  This instance is invite-only. Add people with:"
   echo "    node scripts/seed-user.js <user> \"<Name>\" \"\" \"\" <your company_id>   # shares your pipeline"
   echo "    node scripts/seed-user.js <user> \"<Name>\" \"<Their Company>\"          # their own pipeline"
-  echo "  then apply the SQL it prints with: npx wrangler d1 execute $DB_NAME --remote --file=..."
+  echo "  then apply the SQL it prints with: npx wrangler d1 execute DB --remote --file=..."
   echo "  To open self-serve signup instead, set SIGNUP_OPEN = \"true\" in wrangler.toml"
   echo "  and redeploy. Accounts made that way are always 'founder', never 'admin'."
 }
@@ -288,17 +302,17 @@ do_doctor() {
     # binding silently resolves to nothing and every model call fails at runtime.
     local bad
     bad="$(grep -vcE '^[A-Z_]+=|^$' .dev.vars || true)"
-    [ "$bad" = "0" ] && ok ".dev.vars well-formed" || warn ".dev.vars has $bad malformed line(s) — re-run: ./setup.sh local"
+    [ "$bad" = "0" ] && ok ".dev.vars well-formed" || warn ".dev.vars has $bad malformed line(s) — re-run: npm run dev"
     grep -q '^ANTHROPIC_API_KEY=.\+' .dev.vars && ok "ANTHROPIC_API_KEY present" || warn "ANTHROPIC_API_KEY missing"
     grep -q '^SESSION_SECRET=.\+'    .dev.vars && ok "SESSION_SECRET present"    || warn "SESSION_SECRET missing"
   else
-    warn ".dev.vars missing — run: ./setup.sh local"
+    warn ".dev.vars missing — run: npm run dev"
   fi
 
   grep -q 'REPLACE_WITH' wrangler.toml \
     && warn "wrangler.toml still has placeholder database ids (fine for local, blocks deploy)" \
     || ok "wrangler.toml configured"
-  [ -f .assets/_worker.js ] || [ -d .assets/_worker.js ] && ok ".assets/ built" || warn "run: node build.js"
+  [ -f .assets/_worker.js ] || [ -d .assets/_worker.js ] && ok ".assets/ built" || warn "run: npm run build -w apps/web"
 
   if curl -fsS -o /dev/null "http://localhost:$PORT/login" 2>/dev/null; then
     ok "server responding on :$PORT"

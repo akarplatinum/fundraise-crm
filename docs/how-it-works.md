@@ -63,7 +63,7 @@ Deals are deleted when the client's save no longer contains them, and a failed
 read looks exactly like an empty board. Three guards:
 
 1. The server deletes a deal only if the client had seen it (`updated_at <=
-   _base`, where `_base` is stamped on every read).
+_base`, where `_base` is stamped on every read).
 2. The client refuses to save until `/api/crm` has returned a real board.
 3. The server refuses any save that would delete the whole board, or more than
    half of a board with at least 20 deals, unless the request says

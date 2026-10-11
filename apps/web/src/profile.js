@@ -16,11 +16,9 @@ export const MAX_DECK_BYTES = 20 * 1024 * 1024;
 
 // ---- labeling: taxonomy ----
 //
-// Categories used to be whatever string the model felt like emitting, which
-// meant "B2B SaaS", "SaaS", and "b2b-saas" were three different tags. They fed
-// straight into the discovery prompt, so two identical companies could get
-// materially different investor sets. The vocabulary below is closed: the model
-// picks from it, and anything it returns that isn't here is dropped.
+// A closed vocabulary: the model picks from it, and anything it returns that
+// isn't here is dropped. Free-form tags would make "B2B SaaS" and "b2b-saas"
+// two categories, and categories drive discovery and scoring.
 //
 // Three axes because they answer different investor questions — what market
 // (sector), how the money works (model), and how it reaches customers (gtm). A

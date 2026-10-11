@@ -27,14 +27,14 @@ provider issues for one program, which you can revoke without changing your
 real one. Most providers require two-step verification before they will issue
 one.
 
-| Provider | `SMTP_HOST` | `SMTP_PORT` | Where to get an app password |
-|---|---|---|---|
-| Gmail / Google Workspace | `smtp.gmail.com` | `465` | myaccount.google.com/apppasswords |
-| iCloud Mail | `smtp.mail.me.com` | `587` | account.apple.com, Sign-In and Security, App-Specific Passwords |
-| Fastmail | `smtp.fastmail.com` | `465` | Settings, Privacy & Security, Integrations, App passwords |
-| Zoho Mail | `smtp.zoho.com` (`.eu`, `.in` by region) | `465` | Account, Security, App Passwords |
-| Outlook.com / Microsoft 365 | `smtp.office365.com` | `587` | See the note below |
-| Anything else | your provider's SMTP host | `465` or `587` | your provider's docs |
+| Provider                    | `SMTP_HOST`                              | `SMTP_PORT`    | Where to get an app password                                    |
+| --------------------------- | ---------------------------------------- | -------------- | --------------------------------------------------------------- |
+| Gmail / Google Workspace    | `smtp.gmail.com`                         | `465`          | myaccount.google.com/apppasswords                               |
+| iCloud Mail                 | `smtp.mail.me.com`                       | `587`          | account.apple.com, Sign-In and Security, App-Specific Passwords |
+| Fastmail                    | `smtp.fastmail.com`                      | `465`          | Settings, Privacy & Security, Integrations, App passwords       |
+| Zoho Mail                   | `smtp.zoho.com` (`.eu`, `.in` by region) | `465`          | Account, Security, App Passwords                                |
+| Outlook.com / Microsoft 365 | `smtp.office365.com`                     | `587`          | See the note below                                              |
+| Anything else               | your provider's SMTP host                | `465` or `587` | your provider's docs                                            |
 
 `SMTP_USER` is your full email address. For iCloud, it is your iCloud address,
 even if you sign in to Apple with a different one.
@@ -69,14 +69,14 @@ and does nothing until the secrets below exist.
 
 In your fork, go to **Settings → Secrets and variables → Actions** and add:
 
-| Secret | Value |
-|---|---|
-| `CRM_URL` | from step 3 |
-| `CRM_TOKEN` | from step 3 |
-| `SMTP_HOST` | from the table |
-| `SMTP_PORT` | from the table |
-| `SMTP_USER` | your email address |
-| `SMTP_PASS` | the app password from step 2 |
+| Secret           | Value                                 |
+| ---------------- | ------------------------------------- |
+| `CRM_URL`        | from step 3                           |
+| `CRM_TOKEN`      | from step 3                           |
+| `SMTP_HOST`      | from the table                        |
+| `SMTP_PORT`      | from the table                        |
+| `SMTP_USER`      | your email address                    |
+| `SMTP_PASS`      | the app password from step 2          |
 | `MAIL_FROM_NAME` | your name as recipients should see it |
 
 Then open the **Actions** tab. GitHub disables scheduled workflows on new forks
@@ -128,13 +128,13 @@ Before your first real send, queue one to yourself.
 
 ## When it does not work
 
-| What you see | What it means |
-|---|---|
-| Outbox says the mailer has never checked in | The workflow is not running: enable it on the Actions tab, or check `CRM_URL` and `CRM_TOKEN`. |
-| `bad mailer token` in the workflow log | The token was replaced in the app. Copy the new one into `CRM_TOKEN`. |
-| `SMTP AUTH (password): expected 235, got 535` | The mailbox rejected the login. Use an app password, not your normal password, and check `SMTP_USER` is the full address. |
-| `SMTP timed out` or `ECONNREFUSED` | Wrong `SMTP_HOST` or `SMTP_PORT`. |
-| Sent, but the investor never got it | Check your Sent folder first. If it is there, it left your mailbox, and the rest is the recipient's filtering. Sending from a new domain with no SPF/DKIM records is the usual cause. |
+| What you see                                  | What it means                                                                                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outbox says the mailer has never checked in   | The workflow is not running: enable it on the Actions tab, or check `CRM_URL` and `CRM_TOKEN`.                                                                                        |
+| `bad mailer token` in the workflow log        | The token was replaced in the app. Copy the new one into `CRM_TOKEN`.                                                                                                                 |
+| `SMTP AUTH (password): expected 235, got 535` | The mailbox rejected the login. Use an app password, not your normal password, and check `SMTP_USER` is the full address.                                                             |
+| `SMTP timed out` or `ECONNREFUSED`            | Wrong `SMTP_HOST` or `SMTP_PORT`.                                                                                                                                                     |
+| Sent, but the investor never got it           | Check your Sent folder first. If it is there, it left your mailbox, and the rest is the recipient's filtering. Sending from a new domain with no SPF/DKIM records is the usual cause. |
 
 ## What the mailer does not do
 

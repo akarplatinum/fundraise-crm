@@ -6,7 +6,7 @@
 -- a query forgets it. The composite indexes exist so that filtering stays cheap
 -- as tenants and investors accumulate.
 --
--- Apply:  npx wrangler d1 execute fundraise-crm-db --remote --file=schema.sql
+-- Apply:  npx wrangler d1 execute DB --remote --file=schema.sql
 --
 -- Re-running this file is safe — every statement is IF NOT EXISTS. But note
 -- that CREATE TABLE IF NOT EXISTS does NOT add columns to a table that already
@@ -19,7 +19,7 @@
 --   ALTER TABLE companies ADD COLUMN score_started INTEGER NOT NULL DEFAULT 0;
 --
 -- Run them with:
---   npx wrangler d1 execute fundraise-crm-db --remote --command "<statement>"
+--   npx wrangler d1 execute DB --remote --command "<statement>"
 
 -- A tenant. One founder (or founding team) raising one round.
 CREATE TABLE IF NOT EXISTS companies (

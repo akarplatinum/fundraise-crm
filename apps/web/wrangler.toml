@@ -1,31 +1,23 @@
+# Cloudflare configuration for the CRM. To rename your deploy, change `name`
+# and `database_name` here; nothing else in the repo repeats them. Commands
+# refer to the database by its binding, `DB`.
 name = "fundraise-crm"
 compatibility_date = "2025-01-01"
 
-# Cloudflare Pages, advanced mode: `node build.js` assembles .assets/ with the
-# static UI and a root _worker.js that runs before every request, so nothing is
-# served without a session.
+# Pages, advanced mode: build.js assembles .assets/ with the static UI and a
+# _worker.js that runs before every request, so nothing is served without a
+# session.
 pages_build_output_dir = ".assets"
 
-# ---------------------------------------------------------------------------
-# BEFORE YOUR FIRST DEPLOY, replace database_id below with your own.
+# `npm run deploy` from the repo root creates the database and writes its id
+# here. The placeholder fails loudly if you deploy without doing that, rather
+# than writing somewhere unexpected. To do it by hand:
 #
-#   npx wrangler d1 create fundraise-crm-db
+#   npx wrangler d1 create <database_name>          # prints the id
+#   npx wrangler d1 execute DB --remote --file=schema.sql
 #
-# prints the id. Paste it into BOTH blocks (production and preview), then apply
-# the schema:
-#
-#   npx wrangler d1 execute fundraise-crm-db --remote --file=schema.sql
-#
-# ./setup.sh deploy does all of this for you, including the edit to this file.
-#
-# The placeholder below is not a real database. A deploy against it fails at the
-# first query rather than silently writing somewhere unexpected, which is the
-# behaviour you want from a value you forgot to change.
-#
-# If your Cloudflare login has access to more than one account, wrangler cannot
-# pick one non-interactively. Export the one you want before any remote command:
-#   export CLOUDFLARE_ACCOUNT_ID=<your account id>
-# ---------------------------------------------------------------------------
+# If your Cloudflare login has more than one account, export the one you want
+# first: export CLOUDFLARE_ACCOUNT_ID=<id>
 [[d1_databases]]
 binding = "DB"
 database_name = "fundraise-crm-db"
@@ -36,27 +28,19 @@ binding = "DB"
 database_name = "fundraise-crm-db"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 
-# Secrets — set with `wrangler pages secret put`, never committed:
+# Secrets, set with `npx wrangler pages secret put <NAME>` and never committed:
 #
-#   ANTHROPIC_API_KEY  The key every model call bills to. A Worker secret is the
-#                      safer place for it: unlike the key field on the Settings
-#                      page, it never sits in a queryable table and never
-#                      appears in a database export. Settings wins if both are
-#                      present, so an owner can rotate without a redeploy.
-#   SESSION_SECRET     HMAC key signing the session cookie. Any long random
-#                      string. Changing it signs everyone out.
+#   ANTHROPIC_API_KEY  The key every model call bills to. Safer here than on the
+#                      Settings page, which stores it in the database.
+#   SESSION_SECRET     Signs the session cookie. Any long random string;
+#                      changing it signs everyone out.
 #
 # Vars:
-#   MODEL_ID           Override the default model (claude-opus-5-5) for the whole
-#                      deploy. The Settings page overrides this in turn.
-#   SIGNUP_OPEN        "true" opens self-serve signup at /signup. Left off, the
-#                      instance is invite-only and accounts come from
-#                      seed-user.js. Accounts created at /signup are always
-#                      `founder`, never `admin` — signup can never hand someone
-#                      the ability to repoint your API key.
-#   DECK_UPLOAD        "off" hides the deck-upload step and 403s /api/deck and
-#                      /api/site. For an instance whose profile is curated by
-#                      hand and must not be overwritten by an upload.
+#   MODEL_ID     Default model for this deploy. The Settings page overrides it.
+#   SIGNUP_OPEN  "true" lets people create accounts at /signup. Those accounts
+#                are never admin, so they cannot change the API key.
+#   DECK_UPLOAD  "off" disables deck upload, for an instance whose profile is
+#                maintained by hand.
 [vars]
 SIGNUP_OPEN = "false"
 DECK_UPLOAD = "on"

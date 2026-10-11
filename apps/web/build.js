@@ -1,48 +1,24 @@
 #!/usr/bin/env node
-// Assemble the .assets/ directory that Cloudflare Pages serves.
+// Assembles .assets/, the directory Cloudflare Pages serves:
 //
-// The investor list (../../data) is deliberately NOT bundled. It is loaded into
-// D1 by scripts/seed-investors.js at install time, so it lives in the database as per-company
-// rows rather than as a 1.1MB static asset the Worker would have to gate on
-// every request.
+//   .assets/            a copy of public/ (pages, app/ scripts and styles, vendor/)
+//   .assets/_worker.js/ src/*.js, with index.js as the entry point
+//
+// _worker.js is a directory rather than one file so the Worker can use plain
+// ES module imports across src/ with no bundler. The Worker runs before every
+// request, which is what puts the app behind the sign-in.
+//
+// The investor list is not bundled. scripts/seed-investors.js loads it into the
+// database at setup time.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const ROOT = __dirname;
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(ROOT, ".assets");
 
-function cp(src, dest) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(src, dest);
-  console.log("  +", path.relative(ROOT, dest));
-}
-
 fs.rmSync(OUT, { recursive: true, force: true });
-fs.mkdirSync(OUT, { recursive: true });
+fs.cpSync(path.join(ROOT, "public"), OUT, { recursive: true });
+fs.cpSync(path.join(ROOT, "src"), path.join(OUT, "_worker.js"), { recursive: true });
 
-for (const page of ["index.html", "login.html", "signup.html", "onboarding.html"]) {
-  cp(path.join(ROOT, "public", page), path.join(OUT, page));
-}
-
-// Motion is vendored rather than pulled from a CDN: the app should keep working
-// offline, and a tool holding fundraising data shouldn't fetch a runtime script
-// from a third party. `npm i motion` then re-copy dist/motion.js to update.
-for (const f of fs.readdirSync(path.join(ROOT, "public/vendor"))) {
-  cp(path.join(ROOT, "public/vendor", f), path.join(OUT, "vendor", f));
-}
-
-// Pages advanced mode: the Worker runs first for every request.
-//
-// _worker.js is emitted as a DIRECTORY, not a file. That format lets the Worker
-// use real ES module imports across src/ files, which wrangler resolves at
-// deploy time, so the app splits into modules with no bundler. src/index.js is
-// the entry point; the other modules sit beside it and are imported by path.
-const WORKER_DIR = path.join(OUT, "_worker.js");
-for (const f of fs.readdirSync(path.join(ROOT, "src"))) {
-  if (f.endsWith(".js")) cp(path.join(ROOT, "src", f), path.join(WORKER_DIR, f));
-}
-
-console.log("Built .assets/ (Pages)");
+console.log(`Built ${path.relative(process.cwd(), OUT) || ".assets"}/`);

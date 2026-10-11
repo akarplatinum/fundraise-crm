@@ -52,8 +52,6 @@ fact.
   "relevant_portfolio": ["Chord Commerce", "Bikky"],
   "best_partner": { "name": "", "title": "", "focus": "", "linkedin": "", "twitter_x": "", "email": "" },  // email: never bundled; add your own
   "other_partners": [ /* same shape */ ],
-  "scored": false,               // see below
-  "fit_score": 50,               // placeholder until scored
   "sources": [],
   // fund-list records may also carry:
   "fund_name": "", "fund_year": 2023, "fund_size_usd": null, "aum_usd": null,
@@ -70,8 +68,9 @@ sentence that named it. A fit score is an opinion about one specific company,
 and a score calibrated to somebody else's thesis is not a weak signal about
 yours. It is a wrong one that looks right.
 
-So every record arrives with `scored: false` and a placeholder `fit_score` of
-50, and the app says so until you click **Score against my deck**.
+So the file holds facts only. The loader stores each record with
+`scored: false` and a placeholder fit of 50, and the app says so until you click
+**Score against my deck**.
 
 ## What it is not
 
@@ -92,12 +91,12 @@ So every record arrives with `scored: false` and a placeholder `fit_score` of
 
 Replace `investors.json` with any array of records in the shape above (only
 `id`, `firm`, `category` and `best_partner` are required; the rest can be
-empty). Set `"scored": false` on each. Then re-run setup, or load it into an
+empty). Then re-run setup, or load it into an
 existing company with:
 
 ```bash
 node apps/web/scripts/seed-investors.js <company_id> seed-sql
-for f in seed-sql/*.sql; do npx wrangler d1 execute fundraise-crm-db --remote --file="$f"; done
+for f in seed-sql/*.sql; do npx wrangler d1 execute DB --remote --file="$f"; done
 ```
 
 Loading upserts on `id`, so re-running it updates records rather than
