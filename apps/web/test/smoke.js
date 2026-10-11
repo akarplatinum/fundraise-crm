@@ -51,13 +51,27 @@ const section = (s) => console.log(`\n\x1b[1m${s}\x1b[0m`);
 // which model, which key — rather than only on what came back.
 const sent = [];
 let anthropicHandler = null;
-globalThis.fetch = async (url, init) => {
+// An OpenAI-compatible server and a company website, for the provider tests.
+const openaiSent = [];
+let openaiHandler = null;
+const SITE_HTML = "<html><script>ignore()</script><h1>Northwind</h1><p>Robots for warehouses.</p></html>";
+globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
+  if (u.startsWith("https://llm.test/v1/")) {
+    openaiSent.push({ url: u, auth: init.headers.authorization, body: JSON.parse(init.body) });
+    return openaiHandler(JSON.parse(init.body));
+  }
+  if (u.startsWith("https://northwind.test"))
+    return new Response(SITE_HTML, { headers: { "content-type": "text/html" } });
   if (!u.startsWith("https://api.anthropic.com")) throw new Error("unexpected fetch: " + u);
   const body = JSON.parse(init.body);
   sent.push({ model: body.model, key: init.headers["x-api-key"], body });
   return anthropicHandler(body);
 };
+const openaiReply = (text) =>
+  new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: text } }] }), {
+    status: 200,
+  });
 const reply = (obj) =>
   new Response(
     JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(obj) }] }),
@@ -513,15 +527,15 @@ async function main() {
   check("an admin can read settings", !!s1.model);
   check("the default model is current", s1.model === "claude-opus-5-5", `got ${s1.model}`);
   check("the key is never returned", !JSON.stringify(s1).includes("sk-ant-secret-KEY1"), "API KEY LEAK");
-  check("only the tail is shown", s1.keyTail === "KEY1" && s1.keySource === "worker secret");
+  check("only the tail is shown", s1.keyTail === "KEY1" && s1.keySource === "deploy secret");
 
   const bad = await call(env, ctx, "/api/settings", {
     method: "POST",
     cookie: a.cookie,
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ api_key: "not-a-key" }),
+    body: JSON.stringify({ provider: "nonsense" }),
   });
-  check("an implausible key is rejected", bad.status === 400);
+  check("an unknown provider is rejected", bad.status === 400);
 
   await call(env, ctx, "/api/settings", {
     method: "POST",
@@ -562,8 +576,76 @@ async function main() {
   const s3 = await (await call(env, ctx, "/api/settings", { cookie: a.cookie })).json();
   check(
     "clearing a saved key falls back to the secret",
-    s3.keySource === "worker secret" && s3.keySet === true,
+    s3.keySource === "deploy secret" && s3.keySet === true,
   );
+
+  // --------------------------------------------------------------- providers
+  section("Other model providers");
+  const setProvider = (body) =>
+    call(env, ctx, "/api/settings", {
+      method: "POST",
+      cookie: a.cookie,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  // The Worker secret must never follow a base URL somewhere else.
+  await setProvider({ api_key: "", base_url: "https://evil.test/v1" });
+  const redirected = await (await call(env, ctx, "/api/settings", { cookie: a.cookie })).json();
+  check(
+    "the Anthropic secret is not sent to a different base URL",
+    redirected.keySet === false && !redirected.ready,
+  );
+
+  await setProvider({
+    provider: "openai",
+    base_url: "https://llm.test/v1",
+    model: "my-model",
+    api_key: "local-key",
+  });
+  openaiHandler = () => openaiReply("Subject: Hello\n\nA draft.");
+  const intro = await (
+    await call(env, ctx, "/api/intro", {
+      method: "POST",
+      cookie: a.cookie,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ firm: "Equal Ventures", partner: "Chelsea", type: "cold" }),
+    })
+  ).json();
+  const lastOpenai = openaiSent[openaiSent.length - 1];
+  check(
+    "an OpenAI-compatible provider drafts an intro",
+    intro.text === "Subject: Hello\n\nA draft." &&
+      lastOpenai.url === "https://llm.test/v1/chat/completions" &&
+      lastOpenai.auth === "Bearer local-key" &&
+      lastOpenai.body.model === "my-model",
+    JSON.stringify(intro),
+  );
+
+  // No browsing: the Worker reads the site and hands the model its text.
+  openaiHandler = () => openaiReply(JSON.stringify({ ...PROFILE, rubric: [] }));
+  ({ ctx, settle } = makeCtx());
+  await call(env, ctx, "/api/site", {
+    method: "POST",
+    cookie: a.cookie,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ url: "https://northwind.test" }),
+  });
+  await settle();
+  const sitePrompt = JSON.stringify(openaiSent[openaiSent.length - 1].body.messages);
+  const afterSite = (await (await call(env, ctx, "/api/me", { cookie: a.cookie })).json()).company;
+  check(
+    "a provider without browsing gets the website's text",
+    sitePrompt.includes("Robots for warehouses.") &&
+      !sitePrompt.includes("ignore()") &&
+      afterSite.deck.status === "ready",
+    afterSite.deck.status,
+  );
+
+  const discover = await call(env, ctx, "/api/discover", { method: "POST", cookie: a.cookie });
+  check("discovery explains that it needs web search", discover.status === 409);
+
+  await setProvider({ provider: "anthropic", base_url: "", model: "", api_key: "" });
 
   // -------------------------------------------------------------------- email
   section("Email");

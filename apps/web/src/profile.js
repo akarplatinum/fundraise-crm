@@ -1,4 +1,4 @@
-import { WEB_FETCH_TOOL, callAnthropic, parseJSON } from "./ai.js";
+import { complete, parseJSON, resolveModel } from "./ai.js";
 
 // Turning a deck or a website into a company profile: the model call, the
 // closed category taxonomy it labels against, and the stage-relative deck score.
@@ -399,10 +399,8 @@ export const PROFILE_SCHEMA = {
   additionalProperties: false,
 };
 
-// Reject anything that isn't a plain http(s) URL before it reaches the model.
-// The fetch happens on Anthropic's side, not ours, so this is not an SSRF guard
-// for our own network — it's to fail a typo'd or non-web URL here with a clear
-// message rather than burning a quota unit discovering it.
+// Reject anything that isn't a plain http(s) URL before it costs a model call,
+// so a typo fails here with a clear message.
 export function normalizeSiteUrl(raw) {
   const s = String(raw || "").trim();
   if (!s) return "";
@@ -421,6 +419,36 @@ export function normalizeSiteUrl(raw) {
   return u.toString();
 }
 
+// The readable text of one web page, for providers that cannot browse. Scripts,
+// styles and tags are dropped and the result is capped, since a landing page's
+// useful text is a few thousand characters.
+export async function readPage(url) {
+  let r;
+  try {
+    r = await fetch(url, {
+      headers: { "user-agent": "Mozilla/5.0 (compatible; FundraiseCRM/1.0)", accept: "text/html" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (_) {
+    throw Object.assign(new Error(`Could not open ${url}.`), { status: 400 });
+  }
+  if (!r.ok) throw Object.assign(new Error(`${url} answered with HTTP ${r.status}.`), { status: 400 });
+  const html = (await r.text()).slice(0, 2_000_000);
+  return html
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40000);
+}
+
 // Builds the profile from a deck, a site URL, or both. Either source alone is
 // enough: plenty of pre-deck founders have a live site, and for those who have
 // both the site is usually more current than the deck — so when they disagree,
@@ -430,33 +458,35 @@ export async function analyzeProfile(env, { pdfBase64 = "", siteUrl = "" } = {})
   if (!pdfBase64 && !siteUrl) throw new Error("Nothing to analyze.");
 
   const sources = [pdfBase64 && "a pitch deck", siteUrl && "the company's website"].filter(Boolean);
-  const content = [];
-  // The document block goes before the text block — the model reads the
-  // deck, then the instruction about what to do with it.
-  if (pdfBase64) {
-    content.push({
-      type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-    });
+  const { capabilities } = await resolveModel(env);
+  // A provider that can browse opens the site itself and can follow a link to
+  // a deck. One that cannot gets the landing page's text, fetched here.
+  const browse = siteUrl && capabilities.webFetch;
+  const pageText = siteUrl && !browse ? await readPage(siteUrl) : "";
+
+  let prompt = "Extract the fundraising profile for this deck.";
+  if (browse) {
+    prompt =
+      `Extract the fundraising profile for this company. Fetch and read ${siteUrl} first.\n\n` +
+      "Then follow links from that page, in this order of priority:\n" +
+      "1. A pitch deck, investor deck, or fundraising one-pager — often a PDF, a link labelled " +
+      "'deck'/'investors'/'raise'/'pitch', or a Docsend/Notion/Drive link. If you find one, fetch and read it. " +
+      "It is the single highest-value source here and usually the only place stage, raise amount, and traction " +
+      "metrics appear.\n" +
+      "2. About, team, product, pricing, and customer pages.\n\n" +
+      "If a deck link exists but cannot be fetched (login wall, Docsend gate, dead link), say so in `gaps` " +
+      "rather than guessing at what it contained." +
+      (pdfBase64 ? "\n\nTheir pitch deck is also attached above; read it as well." : "");
+  } else if (siteUrl) {
+    prompt =
+      `Extract the fundraising profile for this company from the text of its website, ${siteUrl}, below. ` +
+      "Only the landing page was read; note in `gaps` anything that would need other pages or a deck." +
+      (pdfBase64 ? " Their pitch deck is also attached; read it as well." : "") +
+      `\n\nWEBSITE TEXT:\n${pageText}`;
   }
-  content.push({
-    type: "text",
-    text: siteUrl
-      ? `Extract the fundraising profile for this company. Fetch and read ${siteUrl} first.\n\n` +
-        "Then follow links from that page, in this order of priority:\n" +
-        "1. A pitch deck, investor deck, or fundraising one-pager — often a PDF, a link labelled " +
-        "'deck'/'investors'/'raise'/'pitch', or a Docsend/Notion/Drive link. If you find one, fetch and read it. " +
-        "It is the single highest-value source here and usually the only place stage, raise amount, and traction " +
-        "metrics appear.\n" +
-        "2. About, team, product, pricing, and customer pages.\n\n" +
-        "If a deck link exists but cannot be fetched (login wall, Docsend gate, dead link), say so in `gaps` " +
-        "rather than guessing at what it contained." +
-        (pdfBase64 ? "\n\nTheir pitch deck is also attached above; read it as well." : "")
-      : "Extract the fundraising profile for this deck.",
-  });
 
   const call = () =>
-    callAnthropic(env, {
+    complete(env, {
       system:
         `You extract a structured fundraising profile from ${sources.join(" and ")}. ` +
         "Report only what the source material actually says. If a field is absent, return an empty string or empty " +
@@ -474,8 +504,9 @@ export async function analyzeProfile(env, { pdfBase64 = "", siteUrl = "" } = {})
         "cannot support. Score what is on the page — a dimension you cannot assess because the source omits it " +
         "is a low score with `evidence` saying it is absent, not a guess at what they probably meant. Do not " +
         "return an overall score; the dimensions are combined elsewhere.",
-      content,
-      tools: siteUrl ? [WEB_FETCH_TOOL] : undefined,
+      prompt,
+      pdf: pdfBase64 || undefined,
+      fetchUrl: browse ? siteUrl : undefined,
       schema: PROFILE_SCHEMA,
       maxTokens: 8000,
     });

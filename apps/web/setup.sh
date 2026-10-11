@@ -7,7 +7,7 @@
 #   ./setup.sh deploy    Provision D1 + secrets and deploy to Cloudflare Pages.
 #   ./setup.sh doctor    Diagnose an install without changing anything.
 #
-# Non-interactive (for an agent): set ANTHROPIC_API_KEY in the environment and
+# Non-interactive (for an agent): set AI_API_KEY (and AI_PROVIDER etc.) in the environment and
 # nothing will prompt. See AGENTS.md.
 set -euo pipefail
 
@@ -42,37 +42,55 @@ check_prereqs() {
   # (motion) is vendored in public/vendor.
 }
 
-# The key is the one thing that cannot be generated or defaulted. Accept it from
-# the environment first so an agent never has to drive a prompt; fall back to
-# reading an existing .dev.vars, and only then ask a human.
-resolve_api_key() {
-  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then echo "$ANTHROPIC_API_KEY"; return; fi
-  if [ -f .dev.vars ] && grep -q '^ANTHROPIC_API_KEY=' .dev.vars; then
-    sed -n 's/^ANTHROPIC_API_KEY=//p' .dev.vars | head -1 | tr -d '"'
-    return
+# Which model to use comes from the environment, so an agent never has to
+# drive a prompt:
+#
+#   AI_PROVIDER  anthropic (default) or openai (any OpenAI-compatible server)
+#   AI_BASE_URL  the API root, for a proxy or a self-hosted model
+#   AI_API_KEY   the key (ANTHROPIC_API_KEY is accepted too)
+#   MODEL_ID     the model name; required for openai
+#
+# Values already in .dev.vars are reused, so a re-run needs none of them.
+dev_var() { [ -f .dev.vars ] || return 0; sed -n "s/^$1=//p" .dev.vars | head -1 | tr -d '"'; }
+
+resolve_ai_config() {
+  AI_PROVIDER="${AI_PROVIDER:-$(dev_var AI_PROVIDER)}"
+  AI_PROVIDER="${AI_PROVIDER:-anthropic}"
+  AI_BASE_URL="${AI_BASE_URL:-$(dev_var AI_BASE_URL)}"
+  MODEL_ID="${MODEL_ID:-$(dev_var MODEL_ID)}"
+  AI_API_KEY="${AI_API_KEY:-${ANTHROPIC_API_KEY:-$(dev_var AI_API_KEY)}}"
+  AI_API_KEY="${AI_API_KEY:-$(dev_var ANTHROPIC_API_KEY)}"
+  case "$AI_PROVIDER" in
+    anthropic) ;;
+    openai) [ -n "$MODEL_ID" ] || die "AI_PROVIDER=openai needs MODEL_ID, the model name your server expects." ;;
+    *) die "AI_PROVIDER must be anthropic or openai (got '$AI_PROVIDER')." ;;
+  esac
+  # Anthropic always needs a key. A self-hosted OpenAI-compatible server may not.
+  if [ "$AI_PROVIDER" = anthropic ] && [ -z "$AI_API_KEY" ]; then
+    [ -t 0 ] || die "No API key. Re-run as: AI_API_KEY=sk-ant-... $0 ${MODE:-local}
+     (or set AI_PROVIDER=openai with AI_BASE_URL and MODEL_ID for another model)"
+    printf 'Anthropic API key (sk-ant-...): ' >&2
+    read -r AI_API_KEY
+    [ -n "$AI_API_KEY" ] || die "No key entered."
   fi
-  if [ ! -t 0 ]; then
-    die "ANTHROPIC_API_KEY is not set and there is no terminal to prompt on.
-     Re-run as: ANTHROPIC_API_KEY=sk-ant-... $0 ${MODE:-local}
-     Get a key at https://console.anthropic.com/settings/keys"
-  fi
-  printf 'Anthropic API key (sk-ant-...): ' >&2
-  read -r key
-  [ -n "$key" ] || die "No key entered."
-  echo "$key"
+  ok "model provider: $AI_PROVIDER${MODEL_ID:+, model $MODEL_ID}${AI_BASE_URL:+, at $AI_BASE_URL}"
 }
 
 # .dev.vars is a flat KEY=value file with no quoting and no continuations. It is
 # always rewritten whole: appending can leave a duplicate key that silently
 # breaks the binding.
 write_dev_vars() {
-  local key="$1" secret
-  secret="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')"
-  if [ -f .dev.vars ] && grep -q '^SESSION_SECRET=' .dev.vars; then
-    secret="$(sed -n 's/^SESSION_SECRET=//p' .dev.vars | head -1 | tr -d '"')"
-  fi
+  local secret
+  secret="$(dev_var SESSION_SECRET)"
+  secret="${secret:-$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')}"
   umask 077
-  printf 'SESSION_SECRET=%s\nSIGNUP_OPEN=false\nANTHROPIC_API_KEY=%s\n' "$secret" "$key" > .dev.vars
+  {
+    printf 'SESSION_SECRET=%s\nSIGNUP_OPEN=false\nAI_PROVIDER=%s\n' "$secret" "$AI_PROVIDER"
+    local name
+    for name in AI_BASE_URL AI_API_KEY MODEL_ID; do
+      if [ -n "${!name}" ]; then printf '%s=%s\n' "$name" "${!name}"; fi
+    done
+  } > .dev.vars
   ok ".dev.vars written (0600, session secret preserved across re-runs)"
 }
 
@@ -169,7 +187,8 @@ ensure_owner() {
 # ------------------------------------------------------------------- local mode
 do_local() {
   check_prereqs
-  write_dev_vars "$(resolve_api_key)"
+  resolve_ai_config
+  write_dev_vars
 
   # --local keeps everything in .wrangler/state. The REPLACE_WITH placeholders in
   # wrangler.toml are fine here: the id is only consulted for remote calls, which
@@ -255,7 +274,7 @@ patch_config() {
 do_deploy() {
   check_prereqs
   require_cf_login
-  local db_id key
+  local db_id
   # Exported, so every wrangler call below targets the same account.
   CLOUDFLARE_ACCOUNT_ID="$(resolve_account_id)"
   export CLOUDFLARE_ACCOUNT_ID
@@ -270,9 +289,13 @@ do_deploy() {
   $WRANGLER d1 execute DB --remote --file=schema.sql >/dev/null && ok "schema applied"
 
   bold "Setting secrets"
-  key="$(resolve_api_key)"
-  printf '%s' "$key" | $WRANGLER pages secret put ANTHROPIC_API_KEY --project-name "$APP_NAME" >/dev/null 2>&1 \
-    && ok "ANTHROPIC_API_KEY set" || warn "could not set ANTHROPIC_API_KEY (set it in the dashboard)"
+  resolve_ai_config
+  local name
+  for name in AI_PROVIDER AI_BASE_URL AI_API_KEY MODEL_ID; do
+    [ -n "${!name}" ] || continue
+    printf '%s' "${!name}" | $WRANGLER pages secret put "$name" --project-name "$APP_NAME" >/dev/null 2>&1 \
+      && ok "$name set" || warn "could not set $name (set it in the dashboard)"
+  done
   node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))' \
     | $WRANGLER pages secret put SESSION_SECRET --project-name "$APP_NAME" >/dev/null 2>&1 \
     && ok "SESSION_SECRET set" || warn "could not set SESSION_SECRET (set it in the dashboard)"
@@ -303,7 +326,9 @@ do_doctor() {
     local bad
     bad="$(grep -vcE '^[A-Z_]+=|^$' .dev.vars || true)"
     [ "$bad" = "0" ] && ok ".dev.vars well-formed" || warn ".dev.vars has $bad malformed line(s) — re-run: npm run dev"
-    grep -q '^ANTHROPIC_API_KEY=.\+' .dev.vars && ok "ANTHROPIC_API_KEY present" || warn "ANTHROPIC_API_KEY missing"
+    ok "model provider: $(dev_var AI_PROVIDER) $(dev_var MODEL_ID)"
+    [ -n "$(dev_var AI_API_KEY)" ] && ok "AI_API_KEY present" \
+      || { [ "$(dev_var AI_PROVIDER)" = openai ] && ok "no AI_API_KEY (fine for a self-hosted server)" || warn "AI_API_KEY missing"; }
     grep -q '^SESSION_SECRET=.\+'    .dev.vars && ok "SESSION_SECRET present"    || warn "SESSION_SECRET missing"
   else
     warn ".dev.vars missing — run: npm run dev"

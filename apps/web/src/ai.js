@@ -1,49 +1,105 @@
+import * as anthropic from "./provider-anthropic.js";
+import * as openai from "./provider-openai.js";
 import { bumpUsage, getSettings } from "./store.js";
 
-// The Anthropic API: which model and key this deploy uses, the one function
-// that calls it, and the per-user daily limits that bound what any account can
-// spend.
+// The model layer. The app asks for one thing, complete(), in provider-neutral
+// terms; an adapter per API turns that into a request. To add a provider, write
+// a module with the same exports as provider-openai.js (label, capabilities,
+// defaults, complete) and list it here. docs/models.md walks through it.
+export const PROVIDERS = { anthropic, openai };
 
-// The default model. Overridable per deploy without touching code: MODEL_ID as
-// a Worker var, or the model field on the Settings page (which wins). Opus is
-// the right default here because every call in this app is a judgement call —
-// reading a deck, ranking a fund against a thesis — not a formatting task.
-export const DEFAULT_MODEL = "claude-opus-5-5";
-
-// Where the model credentials come from, in order of precedence:
+// Which provider, model and key this deploy uses. The Settings page (admin
+// only) wins over Worker vars, so an owner can switch without a redeploy:
 //
-//   1. The `settings` row written by the Settings page (owner-only).
-//   2. The ANTHROPIC_API_KEY / MODEL_ID Worker secrets and vars.
+//   provider  settings.provider  > AI_PROVIDER  > "anthropic"
+//   base URL  settings.base_url  > AI_BASE_URL  > the provider's default
+//   API key   settings.api_key   > AI_API_KEY (or ANTHROPIC_API_KEY)
+//   model     settings.model     > MODEL_ID     > the provider's default
 //
-// The settings row wins so an owner can rotate a key from the browser without a
-// redeploy. Either way the key is read server-side and never serialized into a
-// response — see /api/settings, which returns only a masked tail.
+// The key is read here and nowhere returns it; /api/settings shows its last
+// four characters only.
 export async function resolveModel(env) {
   const saved = (await getSettings(env)) || {};
+  const provider = PROVIDERS[saved.provider]
+    ? saved.provider
+    : PROVIDERS[env.AI_PROVIDER]
+      ? env.AI_PROVIDER
+      : "anthropic";
+  const { defaults, capabilities } = PROVIDERS[provider];
+  const baseUrl = (saved.base_url || env.AI_BASE_URL || defaults.baseUrl).replace(/\/$/, "");
+  // A key from the deploy's secrets only goes to the provider and URL the
+  // deploy itself names. Pointing Settings somewhere else needs a key entered
+  // there, so changing the base URL can never send the owner's key elsewhere.
+  const deployProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : "anthropic";
+  const deployUrl = (env.AI_BASE_URL || PROVIDERS[deployProvider].defaults.baseUrl).replace(/\/$/, "");
+  const secretKey =
+    provider === deployProvider && baseUrl === deployUrl ? env.AI_API_KEY || env.ANTHROPIC_API_KEY || "" : "";
+  const apiKey = saved.api_key || secretKey;
+  const model = saved.model || (provider === deployProvider ? env.MODEL_ID : "") || defaults.model;
   return {
-    apiKey: saved.api_key || env.ANTHROPIC_API_KEY || "",
-    model: saved.model || env.MODEL_ID || DEFAULT_MODEL,
-    // Effort trades tokens for thoroughness. `high` is the default for a reason:
-    // at `low` the deck analyses come back shallow enough that the profile is
-    // worse than the deck it was read from.
+    provider,
+    capabilities,
+    apiKey,
+    model,
+    baseUrl,
+    // How hard the model thinks. Below high, deck analyses come back shallow.
+    // Only providers that support it use it.
     effort: saved.effort || "high",
+    // Anthropic always needs a key; a self-hosted OpenAI-compatible server may
+    // not, but every provider needs a model name.
+    ready: !!model && (provider !== "anthropic" || !!apiKey),
   };
 }
 
-// Server-tool version for investor discovery. The _20260209 variants carry
-// built-in dynamic filtering, so results are filtered before they hit the
-// context window — do NOT also declare code_execution alongside it.
-export const WEB_SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 12 };
+/**
+ * One model call, the same for every provider.
+ *
+ *   system     instructions
+ *   prompt     the user turn
+ *   pdf        optional base64 PDF to read
+ *   fetchUrl   optional URL the model may open, and follow links from
+ *   webSearch  true if the model must search the web
+ *   schema     optional JSON Schema the answer must match
+ *   maxTokens, effort, timeoutMs
+ *
+ * Asking for something the provider cannot do (see its `capabilities`) is an
+ * error. Callers check capabilities first and adapt, as analyzeProfile does.
+ */
+export async function complete(env, req) {
+  // Resolved per call, so a change on the Settings page applies immediately.
+  const cfg = await resolveModel(env);
+  if (!cfg.ready) {
+    const e = new Error("The AI model is not set up on this deploy. An admin can set it in Model settings.");
+    e.status = 503;
+    throw e;
+  }
+  const { capabilities } = cfg;
+  if (req.webSearch && !capabilities.webSearch) throw unsupported(cfg, "web search");
+  if (req.fetchUrl && !capabilities.webFetch) throw unsupported(cfg, "fetching web pages");
+  if (req.pdf && !capabilities.pdf) throw unsupported(cfg, "reading PDFs");
 
-// Used when a founder gives a site URL instead of (or alongside) a deck.
-//
-// web_fetch only fetches URLs already present in the conversation. The founder's
-// URL arrives in the user turn; links found *in* that fetched page are then in
-// the conversation too, which is what lets the model follow a "download our
-// deck" link one hop out. It still cannot wander to a URL that never appeared.
-//
-// max_uses is the landing page plus roughly a deck and a handful of subpages.
-export const WEB_FETCH_TOOL = { type: "web_fetch_20260209", name: "web_fetch", max_uses: 12 };
+  try {
+    return await PROVIDERS[cfg.provider].complete(cfg, {
+      maxTokens: 8000,
+      timeoutMs: 300000,
+      ...req,
+    });
+  } catch (e) {
+    // This message reaches the founder verbatim through the job status.
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      throw new Error("That took too long and was stopped. Try again.");
+    }
+    throw e;
+  }
+}
+
+function unsupported(cfg, what) {
+  const e = new Error(
+    `This needs ${what}, which the ${cfg.provider} provider does not offer. Switch provider in Model settings to use it.`,
+  );
+  e.status = 409;
+  return e;
+}
 
 // Per-user daily ceilings, counted in whole actions rather than tokens (an
 // action is what a person recognises; a token is not). On a shared deploy this
@@ -69,82 +125,6 @@ export async function spend(env, username, kind) {
     e.status = 429;
     throw e;
   }
-}
-
-// ---- Anthropic ----
-//
-// Raw fetch rather than @anthropic-ai/sdk, because the Worker has no bundler.
-// timeoutMs applies to each HTTP request (the pause_turn loop may make several):
-// without it, a hung request would leave a background job running forever.
-export async function callAnthropic(
-  env,
-  { system, content, tools, schema, maxTokens = 8000, effort, timeoutMs = 300000 },
-) {
-  // Resolved per call rather than at module load: a key saved on the Settings
-  // page must take effect on the next request, not the next deploy. It costs
-  // one indexed D1 read against a call that runs for seconds.
-  const cfg = await resolveModel(env);
-  if (!cfg.apiKey) throw new Error("no_api_key");
-
-  const body = {
-    model: cfg.model,
-    max_tokens: maxTokens,
-    // These are judgement tasks — reading a deck, ranking a fund against a
-    // thesis — so thinking earns its latency. `budget_tokens` and `temperature`
-    // are rejected on current models; effort is the depth control.
-    thinking: { type: "adaptive" },
-    output_config: { effort: effort || cfg.effort },
-    messages: [{ role: "user", content }],
-  };
-  if (system) body.system = system;
-  if (tools) body.tools = tools;
-  if (schema) body.output_config.format = { type: "json_schema", schema };
-
-  // Server tools run their own sampling loop and stop with pause_turn when it
-  // hits the iteration cap. Resuming is just re-sending with the assistant turn
-  // appended — no extra user message, or the model treats it as new input.
-  const messages = body.messages;
-  let out = null;
-  for (let i = 0; i < 4; i++) {
-    let r;
-    try {
-      r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": cfg.apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({ ...body, messages }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch (e) {
-      // Surfaced as a plain sentence because it reaches the founder verbatim
-      // through markFailed / markDiscoverFailed.
-      if (e.name === "TimeoutError" || e.name === "AbortError") {
-        throw new Error("That took too long and was stopped. Try again.");
-      }
-      throw e;
-    }
-    const text = await r.text();
-    let j;
-    try {
-      j = JSON.parse(text);
-    } catch (_) {
-      throw new Error("bad_response: " + text.slice(0, 300));
-    }
-    if (r.status >= 400) throw new Error(j?.error?.message || `HTTP ${r.status}`);
-    out = j;
-    if (j.stop_reason !== "pause_turn") break;
-    messages.push({ role: "assistant", content: j.content });
-  }
-
-  if (out?.stop_reason === "refusal") throw new Error("The model declined this request.");
-  return (out?.content || [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
 }
 
 // Structured outputs constrain the response, but a pause_turn resume or a

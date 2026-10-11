@@ -67,19 +67,29 @@
         <span class="x" onclick="closeSettings()">×</span>
         <h3>Model settings</h3>
         <div class="msub" id="set-src"></div>
-        <label class="fld">Anthropic API key</label>
-        <input id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" />
+        <label class="fld" for="set-provider">Provider</label>
+        <select id="set-provider"></select>
+        <div class="sethint" id="set-caps"></div>
+        <label class="fld" for="set-base">Base URL</label>
+        <input id="set-base" spellcheck="false" autocomplete="off" />
         <div class="sethint">
-          Stored server-side and never sent back to this page — you will only ever see the last four
-          characters. Leave blank to keep the current key. Type <b>clear</b> to remove a saved key and fall
-          back to the deploy's <code>ANTHROPIC_API_KEY</code> secret.
+          The API root, ending in <code>/v1</code>. Change it to use a proxy, a different host, or a model you
+          serve yourself (Ollama is <code>http://localhost:11434/v1</code> on your machine; a deployed app
+          needs an address the internet can reach). Leave blank for the provider's default.
         </div>
-        <label class="fld">Model</label>
-        <input id="set-model" spellcheck="false" placeholder="claude-opus-5-5" />
+        <label class="fld" for="set-key">API key</label>
+        <input id="set-key" type="password" autocomplete="off" spellcheck="false" />
         <div class="sethint">
-          Any Anthropic model id. <code>claude-opus-5-5</code> is the default and the right one for this app —
-          every call here is a judgement call. <code>claude-sonnet-5-5</code> is cheaper and noticeably
-          blunter at reading a deck.
+          Stored on the server and never sent back to this page; you only see the last four characters. Leave
+          blank to keep the current key. Type <b>clear</b> to remove a saved key and fall back to the deploy's
+          secret. A self-hosted server may need no key.
+        </div>
+        <label class="fld" for="set-model">Model</label>
+        <input id="set-model" spellcheck="false" autocomplete="off" />
+        <div class="sethint">
+          The model name your provider expects, such as <code>claude-opus-5-5</code>, <code>gpt-5</code> or
+          <code>llama3.3:70b</code>. Every call in this app is a judgement call (reading a deck, ranking a
+          fund against a thesis), so use the strongest model you can.
         </div>
         <label class="fld">Effort</label>
         <select id="set-effort">
@@ -90,8 +100,8 @@
           <option value="max">max</option>
         </select>
         <div class="sethint">
-          How hard the model thinks before answering. Below <b>high</b>, deck analyses come back shallow
-          enough that the profile is worse than the deck it was read from.
+          How hard the model thinks before answering (Anthropic only). Below <b>high</b>, deck analyses come
+          back shallow.
         </div>
         <div class="pill-row" style="margin-top: 16px"><button class="btn" id="set-save">Save</button></div>
       </div>

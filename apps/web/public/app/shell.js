@@ -60,7 +60,7 @@ function renderStats() {
   document.getElementById("sfoot").innerHTML =
     `<div class="st"><b>${VCS.length}</b><span>investors</span></div><div class="st"><b>${inPipe}</b><span>active</span></div>` +
     `<div class="st"><b>${committed}</b><span>committed</span></div><div class="st"><b>${CRM.log.length}</b><span>log events</span></div>` +
-    `<div class="keyline"><span class="keydot" style="background:${KEY ? "var(--brand)" : "var(--red)"}"></span>${KEY ? "Intro API ready" : "no API key"}</div>`;
+    `<div class="keyline"><span class="keydot" style="background:${AI_READY ? "var(--brand)" : "var(--red)"}"></span>${AI_READY ? "AI ready" : "AI not set up"}</div>`;
 }
 function renderSideCounts() {
   document.getElementById("ct-dir").textContent = VCS.length;

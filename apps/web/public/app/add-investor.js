@@ -2,7 +2,7 @@
 async function reloadData() {
   const d = await fetch("/api/data").then((r) => r.json());
   VCS = d.vcs || [];
-  KEY = d.keyPresent;
+  AI_READY = d.aiReady;
   COMPS = d.competitors || [];
   Object.keys(byId).forEach((k) => delete byId[k]);
   VCS.forEach((v) => {

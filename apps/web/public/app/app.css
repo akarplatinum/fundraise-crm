@@ -1797,7 +1797,9 @@ tbody tr:hover .rowtrash {
   color: var(--muted);
 }
 .sendbox input,
-.outbox-setup input {
+.outbox-setup input,
+#setbg input,
+#setbg select {
   width: 100%;
   background: var(--surface2);
   border: 1px solid var(--line);

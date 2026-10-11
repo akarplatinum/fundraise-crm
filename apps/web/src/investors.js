@@ -1,4 +1,4 @@
-import { WEB_SEARCH_TOOL, callAnthropic, parseJSON } from "./ai.js";
+import { complete, parseJSON } from "./ai.js";
 import { categoryLabels } from "./profile.js";
 import { bumpScored, loadInvestors, markScored, saveInvestors } from "./store.js";
 
@@ -67,7 +67,7 @@ export async function discoverInvestors(env, profile, categories, exclude) {
   // them in from assumption, and so fit is scored against the proof this
   // company can actually show today.
   const gaps = (profile.gaps || []).slice(0, 8);
-  const text = await callAnthropic(env, {
+  const text = await complete(env, {
     system:
       "You are a fundraising researcher. Search the web to find real, currently-active investors that match the " +
       "company described. Rules: every investor must be one you actually found in a search result — never recall a " +
@@ -76,10 +76,7 @@ export async function discoverInvestors(env, profile, categories, exclude) {
       "Score fit against THIS company specifically, not the sector in general. " +
       "Anything listed under OPEN QUESTIONS is unproven — treat it as unknown, never as an established fact, and " +
       "favour investors who write checks at this level of proof over ones who would need those questions answered first.",
-    content: [
-      {
-        type: "text",
-        text: `Find 12-20 investors for this company.
+    prompt: `Find 12-20 investors for this company.
 
 COMPANY: ${profile.company || "(unnamed)"}
 WHAT IT DOES: ${profile.one_liner || "n/a"}
@@ -94,9 +91,7 @@ ${gaps.length ? `\nOPEN QUESTIONS — the deck does not answer these yet, so do 
 ${exclude.length ? `Already in the pipeline — do not return these: ${exclude.join(", ")}` : ""}
 
 Search for each category and stage combination. Return only investors you verified through search.`,
-      },
-    ],
-    tools: [WEB_SEARCH_TOOL],
+    webSearch: true,
     schema: INVESTORS_SCHEMA,
     maxTokens: 16000,
     // Twelve searches plus a 16k structured payload measured ~150s of real
@@ -320,14 +315,9 @@ Rules:
 - If the record is too thin to judge, score it low and say the record is thin. Do not invent a thesis for a firm you were given nothing about.
 - Return exactly one entry per investor id you were given, using the id verbatim.`;
 
-  const text = await callAnthropic(env, {
+  const text = await complete(env, {
     system,
-    content: [
-      {
-        type: "text",
-        text: `${brief}\n\nScore each of these investors for this company:\n\n${JSON.stringify(rows)}`,
-      },
-    ],
+    prompt: `${brief}\n\nScore each of these investors for this company:\n\n${JSON.stringify(rows)}`,
     schema: SCORES_SCHEMA,
     maxTokens: 16000,
     timeoutMs: 300000,

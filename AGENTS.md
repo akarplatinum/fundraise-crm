@@ -26,15 +26,17 @@ Tell the user two things up front:
 
 Ask: is this just for them, on their machine, or on a URL?
 
-| Answer   | Command                                       | Needs                            |
-| -------- | --------------------------------------------- | -------------------------------- |
-| Just me  | `ANTHROPIC_API_KEY=sk-ant-... npm run dev`    | an Anthropic API key             |
-| On a URL | `ANTHROPIC_API_KEY=sk-ant-... npm run deploy` | the key and a Cloudflare account |
+| Answer   | Command                                | Needs                              |
+| -------- | -------------------------------------- | ---------------------------------- |
+| Just me  | `AI_API_KEY=sk-ant-... npm run dev`    | an API key, or a self-hosted model |
+| On a URL | `AI_API_KEY=sk-ant-... npm run deploy` | that and a Cloudflare account      |
 
-Do not default to deploy: it creates cloud resources. Get the key from the user
-(<https://console.anthropic.com/settings/keys>) and pass it in the environment.
-Do not write it into `apps/web/.dev.vars` yourself; the script writes that file
-whole, with owner-only permissions.
+Do not default to deploy: it creates cloud resources. Ask which model they
+want. For Anthropic, get their key (<https://console.anthropic.com/settings/keys>).
+For anything else, read `docs/models.md` and set `AI_PROVIDER`, `AI_BASE_URL`
+and `MODEL_ID` alongside (or instead of) the key. Pass all of them in the
+environment; do not write `apps/web/.dev.vars` yourself, because the script
+writes that file whole, with owner-only permissions.
 
 **Local.** The script applies the schema, asks for a username, name and company
 (set `OWNER_USER`, `OWNER_DISPLAY`, `OWNER_COMPANY` to skip the prompts), loads
@@ -70,7 +72,7 @@ Walk the user through `docs/email.md`.
 ### Verify, and report what you saw
 
 ```bash
-npm test     # expect: 64 passed, 0 failed, then smtp: ok
+npm test     # expect: 68 passed, 0 failed, then smtp: ok
 ```
 
 Signed in as the user: `/api/me` shows `"role":"admin"`; the Directory lists
@@ -89,7 +91,7 @@ and the port, and changes nothing. Then:
 - **Edits seem to do nothing:** an old server still holds the port and serves
   old code. Find it with `ss -ltnp | grep 4318` and kill it by pid. A broad
   `pkill` pattern can kill your own shell.
-- **`no_api_key`:** the key binding is empty. Run `doctor`.
+- **"The AI model is not set up":** no key (Anthropic) or no model name (openai). Run `doctor`, or check Model settings.
 - **Deck analysis looks stuck:** it takes 30 to 60 seconds in the background.
   Poll `/api/me` until `company.deck.status` is `ready` or `failed`.
 - **"Daily limit reached":** that is `LIMITS` in `apps/web/src/ai.js`

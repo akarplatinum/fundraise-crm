@@ -27,8 +27,8 @@ document.getElementById("modalbg").addEventListener("click", (e) => {
   if (e.target.id === "modalbg") closeModal();
 });
 async function genIntro() {
-  if (!KEY) {
-    toast("Intros need an API key. None is configured.");
+  if (!AI_READY) {
+    toast("Drafting needs the AI model set up. An admin can do it in Model settings.");
     return;
   }
   const v = modalCtx,

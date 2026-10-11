@@ -71,10 +71,10 @@ the final score leans 75% on the model. Change the weights in `runScoring()`.
 
 ## Model and spend
 
-| What                  | Where                                                                                                                 |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Default model         | `DEFAULT_MODEL` in `src/ai.js`, or `MODEL_ID` in `wrangler.toml`, or the Model settings page (admin only), which wins |
-| Daily limits per user | `LIMITS` in `src/ai.js`                                                                                               |
+| What                  | Where                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Provider and model    | the Model settings page (admin only), or `AI_PROVIDER`, `AI_BASE_URL`, `MODEL_ID`; see [models.md](models.md) |
+| Daily limits per user | `LIMITS` in `src/ai.js`                                                                                       |
 
 `LIMITS` counts actions per user per UTC day: 5 deck analyses, 8 scoring runs,
 6 discovery runs, 5 critiques, 60 intro drafts. On your own deploy it is a guard
@@ -123,7 +123,8 @@ apps/web/src/
   index.js      routing and the session gate
   auth.js       passwords and session cookies
   http.js       response helpers
-  ai.js     the Anthropic call, model settings, daily limits
+  ai.js     the one model call, provider choice, daily limits
+  provider-*.js  one adapter per model API (anthropic, openai-compatible)
   profile.js    deck and site analysis, taxonomy, deck score
   investors.js  discovery and scoring
   drafts.js     prompts for intros and the critique

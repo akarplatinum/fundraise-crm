@@ -116,7 +116,7 @@ const LOGMETA = {
 };
 
 let VCS = [],
-  KEY = false,
+  AI_READY = false,
   CRM = { deals: {}, log: [] },
   COMPS = [],
   COMPANY = {};
@@ -222,7 +222,7 @@ async function load() {
       .catch(() => ({})),
   ]);
   VCS = d.vcs || [];
-  KEY = d.keyPresent;
+  AI_READY = d.aiReady;
   COMPS = d.competitors || [];
   COMPANY = d.company || {};
   ME = m || ME;

@@ -30,13 +30,18 @@ database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 
 # Secrets, set with `npx wrangler pages secret put <NAME>` and never committed:
 #
-#   ANTHROPIC_API_KEY  The key every model call bills to. Safer here than on the
-#                      Settings page, which stores it in the database.
+#   AI_API_KEY         The model provider's key (ANTHROPIC_API_KEY also works).
+#                      Safer here than on the Settings page, which stores it
+#                      in the database.
 #   SESSION_SECRET     Signs the session cookie. Any long random string;
 #                      changing it signs everyone out.
 #
 # Vars:
-#   MODEL_ID     Default model for this deploy. The Settings page overrides it.
+#   AI_PROVIDER  anthropic (default) or openai, for any OpenAI-compatible API.
+#   AI_BASE_URL  The provider's API root, for a proxy or a self-hosted model.
+#   MODEL_ID     Model name. Required for openai. See docs/models.md.
+#                setup.sh stores these three as secrets, and the Settings
+#                page overrides them.
 #   SIGNUP_OPEN  "true" lets people create accounts at /signup. Those accounts
 #                are never admin, so they cannot change the API key.
 #   DECK_UPLOAD  "off" disables deck upload, for an instance whose profile is

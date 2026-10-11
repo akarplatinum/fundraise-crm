@@ -20,7 +20,7 @@
 // (analysis, discovery, scoring) run in ctx.waitUntil and write status to the
 // companies row, which the client polls; no response waits on a model call.
 
-import { DEFAULT_MODEL, LIMITS, callAnthropic, resolveModel, spend, toBase64, utcDay } from "./ai.js";
+import { LIMITS, PROVIDERS, complete, resolveModel, spend, toBase64, utcDay } from "./ai.js";
 import { JSON_TYPE, NO_STORE, asset, download, json, readJson, toCsv } from "./http.js";
 import {
   SESSION_DAYS,
@@ -250,7 +250,7 @@ export default {
           // Resolved, not read straight off env: a key saved on the Settings
           // page counts, or the UI tells a founder to configure one that is
           // already there.
-          keyPresent: !!(await resolveModel(env)).apiKey,
+          aiReady: (await resolveModel(env)).ready,
           // Single-tenant deploys whose profile is hand-curated set
           // DECK_UPLOAD=off so re-analysis can't clobber it; the UI reads this
           // to hide the upload step. Default on, so the white-label template is
@@ -414,6 +414,15 @@ export default {
         if (co.discover.status === "searching") {
           return json({ ok: true, status: "searching", note: "A search is already running." });
         }
+        const { provider, capabilities } = await resolveModel(env);
+        if (!capabilities.webSearch) {
+          return json(
+            {
+              error: `Finding new investors needs live web search, which the ${provider} provider does not offer. Scoring and drafting still work; switch provider in Model settings to use this.`,
+            },
+            409,
+          );
+        }
 
         try {
           await spend(env, me.username, "discover");
@@ -458,7 +467,7 @@ export default {
           vcs: investors,
           competitors: (co && co.profile && co.profile.competitors) || [],
           company: co,
-          keyPresent: !!(await resolveModel(env)).apiKey,
+          aiReady: (await resolveModel(env)).ready,
         });
       }
 
@@ -500,16 +509,15 @@ export default {
         try {
           await spend(env, me.username, "intro");
           const { system, user } = buildIntroPrompts(parsed, co.profile, me.display);
-          const text = await callAnthropic(env, {
+          const text = await complete(env, {
             system,
-            content: [{ type: "text", text: user }],
+            prompt: user,
             maxTokens: 2000,
             effort: "medium",
           });
           return json({ text });
         } catch (e) {
-          const msg = e.message === "no_api_key" ? "No API key is configured on this deploy." : e.message;
-          return json({ error: msg }, e.status || 502);
+          return json({ error: e.message }, e.status || 502);
         }
       }
 
@@ -519,9 +527,9 @@ export default {
         try {
           await spend(env, me.username, "critique");
           const { system, user } = buildCritiquePrompt(co.profile, co.name || "the company");
-          const text = await callAnthropic(env, {
+          const text = await complete(env, {
             system,
-            content: [{ type: "text", text: user }],
+            prompt: user,
             maxTokens: 4000,
             effort: "high",
           });
@@ -532,8 +540,7 @@ export default {
           await updateCompany(env, companyId, { profile });
           return json({ text, ts: profile.critique_ts });
         } catch (e) {
-          const msg = e.message === "no_api_key" ? "No API key is configured on this deploy." : e.message;
-          return json({ error: msg }, e.status || 502);
+          return json({ error: e.message }, e.status || 502);
         }
       }
 
@@ -639,13 +646,20 @@ export default {
         const cfg = await resolveModel(env);
         const saved = await getSettings(env);
         return json({
+          provider: cfg.provider,
+          providers: Object.fromEntries(
+            Object.entries(PROVIDERS).map(([name, p]) => [
+              name,
+              { label: p.label, ...p.defaults, capabilities: p.capabilities },
+            ]),
+          ),
+          baseUrl: cfg.baseUrl,
           model: cfg.model,
           effort: cfg.effort,
-          defaultModel: DEFAULT_MODEL,
+          ready: cfg.ready,
           keySet: !!cfg.apiKey,
-          // Where the key came from matters to whoever is debugging: a saved key
-          // silently overriding a Worker secret is otherwise invisible.
-          keySource: saved.api_key ? "settings" : env.ANTHROPIC_API_KEY ? "worker secret" : "none",
+          // A saved key silently overriding a Worker secret is otherwise invisible.
+          keySource: saved.api_key ? "settings" : cfg.apiKey ? "deploy secret" : "none",
           keyTail: cfg.apiKey ? cfg.apiKey.slice(-4) : "",
         });
       }
@@ -654,26 +668,32 @@ export default {
         if (me.role !== "admin") return json({ error: "Only an admin can change settings." }, 403);
         const b = await readJson(request);
         const patch = {};
+        if (typeof b.provider === "string") {
+          if (!PROVIDERS[b.provider]) return json({ error: `Unknown provider "${b.provider}".` }, 400);
+          patch.provider = b.provider;
+        }
+        // "" clears a saved value and falls back to the Worker var or default.
+        if (typeof b.base_url === "string") {
+          const u = b.base_url.trim().replace(/\/$/, "");
+          if (u && !/^https?:\/\/[^\s]+$/i.test(u))
+            return json({ error: "Base URL must start with http:// or https://" }, 400);
+          patch.base_url = u;
+        }
         if (typeof b.model === "string") patch.model = b.model.trim();
         if (typeof b.effort === "string" && ["low", "medium", "high", "xhigh", "max"].includes(b.effort)) {
           patch.effort = b.effort;
         }
-        if (typeof b.api_key === "string") {
-          const key = b.api_key.trim();
-          // "" is the documented way to clear a saved key and fall back to the
-          // Worker secret, so it is a valid value rather than a missing one.
-          if (key && !/^sk-ant-/.test(key)) {
-            return json(
-              { error: "That does not look like an Anthropic API key (they start with sk-ant-)." },
-              400,
-            );
-          }
-          patch.api_key = key;
-        }
+        if (typeof b.api_key === "string") patch.api_key = b.api_key.trim();
         if (!Object.keys(patch).length) return json({ error: "nothing to update" }, 400);
         await saveSettings(env, patch);
         const cfg = await resolveModel(env);
-        return json({ ok: true, model: cfg.model, effort: cfg.effort, keySet: !!cfg.apiKey });
+        return json({
+          ok: true,
+          provider: cfg.provider,
+          model: cfg.model,
+          ready: cfg.ready,
+          keySet: !!cfg.apiKey,
+        });
       }
 
       if (p === "/api/usage" && method === "GET") {

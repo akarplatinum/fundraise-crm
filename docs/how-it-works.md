@@ -27,14 +27,21 @@ The free pass is what makes the paid one affordable: the model never reads the
 hundreds of firms that fail on stage alone. Each batch is saved as it finishes,
 so a run that dies on batch seven keeps the six it paid for.
 
-## The API key
+## The model and its key
 
-Every model call bills to the key this deploy holds: the one saved on the Model
-settings page (admin only) if there is one, otherwise the `ANTHROPIC_API_KEY`
-Worker secret. No route returns the key. `GET /api/settings` gives whether one
-is set, where it came from, and its last four characters.
+Every model call goes through `complete()` in `src/ai.js`, which picks the
+provider adapter (`src/provider-*.js`) from Model settings or the deploy's
+`AI_*` variables. Callers ask for what they need (a PDF read, a page opened, a
+web search) and check the provider's `capabilities` first, so a provider
+without browsing gets the site's text from the Worker and one without search
+leaves discovery off with a clear message. See [models.md](models.md).
 
-The Worker secret is the safer place. A key saved in Settings lives in a D1 row,
+No route returns the key. `GET /api/settings` gives whether one is set, where it
+came from, and its last four characters. A key from the deploy's secrets is
+only sent to the provider and URL the deploy names, so changing the base URL in
+Settings cannot redirect it.
+
+A Worker secret is the safer place for the key. A key saved in Settings lives in a D1 row,
 so it is in your database exports and readable by anything that can query the
 database.
 
