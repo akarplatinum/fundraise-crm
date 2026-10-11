@@ -1,0 +1,62 @@
+name = "fundraise-crm"
+compatibility_date = "2025-01-01"
+
+# Cloudflare Pages, advanced mode: `node build.js` assembles .assets/ with the
+# static UI and a root _worker.js that runs before every request, so nothing is
+# served without a session.
+pages_build_output_dir = ".assets"
+
+# ---------------------------------------------------------------------------
+# BEFORE YOUR FIRST DEPLOY, replace database_id below with your own.
+#
+#   npx wrangler d1 create fundraise-crm-db
+#
+# prints the id. Paste it into BOTH blocks (production and preview), then apply
+# the schema:
+#
+#   npx wrangler d1 execute fundraise-crm-db --remote --file=schema.sql
+#
+# ./setup.sh deploy does all of this for you, including the edit to this file.
+#
+# The placeholder below is not a real database. A deploy against it fails at the
+# first query rather than silently writing somewhere unexpected, which is the
+# behaviour you want from a value you forgot to change.
+#
+# If your Cloudflare login has access to more than one account, wrangler cannot
+# pick one non-interactively. Export the one you want before any remote command:
+#   export CLOUDFLARE_ACCOUNT_ID=<your account id>
+# ---------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "fundraise-crm-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "fundraise-crm-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# Secrets — set with `wrangler pages secret put`, never committed:
+#
+#   ANTHROPIC_API_KEY  The key every model call bills to. A Worker secret is the
+#                      safer place for it: unlike the key field on the Settings
+#                      page, it never sits in a queryable table and never
+#                      appears in a database export. Settings wins if both are
+#                      present, so an owner can rotate without a redeploy.
+#   SESSION_SECRET     HMAC key signing the session cookie. Any long random
+#                      string. Changing it signs everyone out.
+#
+# Vars:
+#   MODEL_ID           Override the default model (claude-opus-5-5) for the whole
+#                      deploy. The Settings page overrides this in turn.
+#   SIGNUP_OPEN        "true" opens self-serve signup at /signup. Left off, the
+#                      instance is invite-only and accounts come from
+#                      seed-user.js. Accounts created at /signup are always
+#                      `founder`, never `admin` — signup can never hand someone
+#                      the ability to repoint your API key.
+#   DECK_UPLOAD        "off" hides the deck-upload step and 403s /api/deck and
+#                      /api/site. For an instance whose profile is curated by
+#                      hand and must not be overwritten by an upload.
+[vars]
+SIGNUP_OPEN = "false"
+DECK_UPLOAD = "on"

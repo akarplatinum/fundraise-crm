@@ -1,0 +1,20 @@
+{
+  "name": "fundraise-crm",
+  "private": true,
+  "description": "An investor CRM for founders: upload your deck, score 1,715 investors against it, run the pipeline, email from your own mailbox.",
+  "workspaces": [
+    "apps/web",
+    "apps/mailer"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces",
+    "dev": "apps/web/setup.sh local",
+    "deploy": "apps/web/setup.sh deploy",
+    "doctor": "apps/web/setup.sh doctor",
+    "mail": "npm start -w apps/mailer"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

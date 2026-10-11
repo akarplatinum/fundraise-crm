@@ -1,0 +1,11 @@
+{
+  "name": "@fundraise-crm/mailer",
+  "private": true,
+  "description": "Sends the CRM's queued email through your own mailbox over SMTP. No dependencies.",
+  "scripts": {
+    "start": "node mailer.js",
+    "check": "node mailer.js --check",
+    "dry-run": "node mailer.js --dry-run",
+    "test": "node test/smtp.test.js"
+  }
+}

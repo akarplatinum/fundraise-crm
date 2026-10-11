@@ -1,0 +1,9 @@
+node_modules/
+.assets/
+.wrangler/
+# Holds ANTHROPIC_API_KEY for local runs. A glob, because the bare name would
+# not match editor backups like .dev.vars.save.
+.dev.vars*
+# Output of scripts/seed-investors.js: 1 MB of SQL with a company id baked in.
+seed-sql/
+.env

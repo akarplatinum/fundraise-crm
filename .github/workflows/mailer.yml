@@ -1,0 +1,41 @@
+# Sends the CRM's queued email from your own mailbox, every five minutes.
+#
+# Set these in your fork under Settings → Secrets and variables → Actions:
+#   CRM_URL, CRM_TOKEN                  from the app's Outbox page
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM_NAME
+# Values for Gmail, Outlook, iCloud, Fastmail and Zoho are in docs/email.md.
+#
+# Until CRM_TOKEN is set, every run is a no-op, so forks that never use email
+# are not sent failure notifications.
+name: mailer
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mailer
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CRM_URL: ${{ secrets.CRM_URL }}
+      CRM_TOKEN: ${{ secrets.CRM_TOKEN }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CRM_TOKEN != ''
+      - uses: actions/setup-node@v4
+        if: env.CRM_TOKEN != ''
+        with:
+          node-version: 22
+      - run: node apps/mailer/mailer.js
+        if: env.CRM_TOKEN != ''

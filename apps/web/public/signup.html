@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create your account · Fundraise CRM</title>
+    <style>
+      :root {
+        --bg: #fbfbfa;
+        --fg: #16161a;
+        --muted: #6b6b76;
+        --line: #e6e6e2;
+        --card: #fff;
+        --bad: #b4342a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111114;
+          --fg: #f2f2f0;
+          --muted: #9a9aa4;
+          --line: #2a2a31;
+          --card: #191920;
+          --bad: #f0857c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          15px/1.55 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Inter,
+          system-ui,
+          sans-serif;
+      }
+      form {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 32px;
+        width: 100%;
+        max-width: 380px;
+        margin: 24px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      p.sub {
+        color: var(--muted);
+        margin: 0 0 22px;
+        font-size: 14px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 14px 0 5px;
+      }
+      input {
+        width: 100%;
+        font: inherit;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      button {
+        width: 100%;
+        margin-top: 22px;
+        font: inherit;
+        font-weight: 500;
+        padding: 11px;
+        border-radius: 9px;
+        border: 1px solid var(--fg);
+        background: var(--fg);
+        color: var(--bg);
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .err {
+        color: var(--bad);
+        font-size: 14px;
+        margin-top: 14px;
+        min-height: 20px;
+      }
+      .alt {
+        text-align: center;
+        margin-top: 18px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="f">
+      <h1>Create your account</h1>
+      <p class="sub">Your deck, your pipeline. Nobody else can see it.</p>
+
+      <label for="company">Company</label>
+      <input id="company" required maxlength="80" autocomplete="organization" />
+
+      <label for="display">Your name</label>
+      <input id="display" required maxlength="60" autocomplete="name" />
+
+      <label for="username">Username</label>
+      <input
+        id="username"
+        required
+        minlength="3"
+        maxlength="40"
+        pattern="[A-Za-z0-9._\-]+"
+        autocomplete="username"
+        autocapitalize="off"
+      />
+
+      <label for="password">Password <span style="opacity: 0.7">(12+ characters)</span></label>
+      <input id="password" type="password" required minlength="12" autocomplete="new-password" />
+
+      <button id="go">Create account</button>
+      <div class="err" id="err"></div>
+      <div class="alt">Already have one? <a href="/login">Sign in</a></div>
+    </form>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      $("f").onsubmit = async (e) => {
+        e.preventDefault();
+        $("go").disabled = true;
+        $("err").textContent = "";
+        try {
+          const r = await fetch("/api/signup", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              company: $("company").value.trim(),
+              display: $("display").value.trim(),
+              username: $("username").value.trim().toLowerCase(),
+              password: $("password").value,
+            }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(j.error || "Could not create the account.");
+          location.href = "/onboarding";
+        } catch (err) {
+          $("err").textContent = err.message;
+          $("go").disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>
